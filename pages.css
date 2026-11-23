@@ -1,0 +1,64 @@
+:root {
+  --bg: #0b1120;
+  --card: #131c31;
+  --line: #1e293b;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --cyan: #06b6d4;
+  --amber: #f59e0b;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif;
+  line-height: 1.9;
+}
+a { color: var(--cyan); }
+.wrap { max-width: 780px; margin: 0 auto; padding: 0 16px; }
+header.top {
+  border-bottom: 1px solid var(--line);
+  background: rgba(2, 6, 23, 0.7);
+}
+header.top .wrap {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding-top: 12px; padding-bottom: 12px;
+}
+.brand { font-weight: 900; font-size: 1.1rem; color: #fff; text-decoration: none; }
+.play-btn {
+  display: inline-block; padding: 10px 22px; border-radius: 14px;
+  background: linear-gradient(to left, var(--cyan), #0ea5e9);
+  color: #020617; font-weight: 900; text-decoration: none;
+}
+.play-btn.big { padding: 14px 30px; font-size: 1.1rem; }
+main { padding: 28px 0 40px; }
+h1 { font-size: 1.9rem; line-height: 1.4; margin: 0 0 8px; color: #fff; }
+h2 { font-size: 1.3rem; margin: 32px 0 8px; color: #fff; }
+.lead { color: var(--muted); font-size: 1.05rem; margin: 0 0 20px; }
+.facts {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px; margin: 20px 0;
+}
+.fact {
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 12px; text-align: center;
+}
+.fact b { display: block; font-size: 1.2rem; color: var(--amber); }
+.fact span { font-size: 0.85rem; color: var(--muted); }
+ol, ul { padding-right: 22px; }
+li { margin-bottom: 6px; }
+.cta { text-align: center; margin: 36px 0 8px; }
+.more { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.more a {
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  padding: 8px 14px; text-decoration: none; color: var(--text); font-weight: 700;
+}
+footer.bottom {
+  border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem;
+  padding: 20px 0;
+}
+footer.bottom nav { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 6px; }
+@media (max-width: 480px) {
+  h1 { font-size: 1.5rem; }
+}
