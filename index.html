@@ -10104,6 +10104,13 @@
               </div>
             </div>
 
+            <button type="button" data-open-info="tv"
+              class="mt-3 w-full py-2.5 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-sm transition">
+              📺 العبوها على شاشة التلفزيون — الطريقة
+            </button>
+
+            ${renderDailyPuzzle()}
+
             <div class="grid grid-cols-3 gap-2 mt-6 pt-5 border-t border-slate-800 text-center">
               <div class="p-2.5 rounded-2xl bg-slate-900/60 border border-slate-800/80">
                 <div class="text-lg font-black text-cyan-400">8</div>
@@ -10939,6 +10946,7 @@
               </div>
             </div>
 
+            ${renderShareBar('تحدي التصانيف', [t0.name, t1.name], [t0.score, t1.score], t0.score === t1.score ? -1 : (t0.score > t1.score ? 0 : 1))}
             <div class="space-y-2.5">
               <button id="btn-play-again" type="button"
                 class="w-full h-13 py-3.5 rounded-2xl bg-gradient-to-l from-cyan-500 to-amber-500 text-slate-950 font-black text-base shadow-lg active:scale-95 transition">
@@ -11330,6 +11338,7 @@
           <div class="text-xs sm:text-sm font-bold ${h.winner === 'orange' ? 'text-cyan-200' : 'text-amber-200'} mb-3">
             ${h.winner === 'orange' ? 'نجح في توصيل الجهتين العلوية والسفلية ↕' : 'نجح في توصيل الجهتين اليمنى واليسرى ↔'}
           </div>
+          ${renderShareBar('لعبة خلية الحروف', [h.orangeName, h.greenName], null, h.winner === 'orange' ? 0 : 1)}
           <div class="flex flex-wrap items-center justify-center gap-2">
             <button id="btn-hex-new-win" type="button"
               class="px-5 py-2.5 rounded-xl bg-gradient-to-l from-cyan-500 to-amber-500 text-slate-950 font-black text-sm shadow-lg active:scale-95 transition">
@@ -12042,6 +12051,7 @@
               ${isTie ? '🤝 تعادل مثير في لعبة المزاد!' : `فاز ${escapeHtml(state.teams[winIdx].name)} ببطولة المزاد!`}
             </h2>
             <p class="text-sm font-bold text-emerald-300">${escapeHtml(a.lastRoundReason || 'مباراة رائعة وحماسية!')}</p>
+            ${renderShareBar('لعبة المزاد', [state.teams[0].name, state.teams[1].name], a.scores, isTie ? -1 : winIdx)}
             <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
               <button id="btn-auc-restart" type="button"
                 class="px-6 py-3.5 rounded-2xl bg-gradient-to-l from-cyan-500 to-amber-500 text-slate-950 font-black text-base shadow-lg active:scale-95 transition">
@@ -12414,6 +12424,7 @@
             <h2 class="text-2xl sm:text-4xl font-black text-white">
               ${isTie ? '🤝 تعادل في الكلمة الممنوعة!' : `فاز ${escapeHtml(state.teams[winIdx].name)}!`}
             </h2>
+            ${renderShareBar('الكلمة الممنوعة', [state.teams[0].name, state.teams[1].name], tb.scores, isTie ? -1 : winIdx)}
             <div class="flex flex-wrap items-center justify-center gap-3">
               <button id="btn-tb-restart" type="button"
                 class="px-6 py-3.5 rounded-2xl bg-gradient-to-l from-cyan-500 to-amber-500 text-slate-950 font-black text-base shadow-lg active:scale-95 transition">
@@ -12579,6 +12590,7 @@
             <h2 class="text-2xl sm:text-4xl font-black text-white">
               ${isTie ? '🤝 تعادل في التلميحات المتدرجة!' : `فاز ${escapeHtml(state.teams[winIdx].name)}!`}
             </h2>
+            ${renderShareBar('التلميحات المتدرجة', [state.teams[0].name, state.teams[1].name], cl.scores, isTie ? -1 : winIdx)}
             <div class="flex flex-wrap items-center justify-center gap-3">
               <button id="btn-cl-restart" type="button"
                 class="px-6 py-3.5 rounded-2xl bg-gradient-to-l from-cyan-500 to-amber-500 text-slate-950 font-black text-base shadow-lg active:scale-95 transition">
@@ -12786,6 +12798,7 @@
           <h2 class="text-2xl sm:text-4xl font-black text-white">
             ${isTie ? tieText : `فاز ${escapeHtml(state.teams[winIdx].name)}!`}
           </h2>
+          ${renderShareBar(restartId === 'btn-em-restart' ? 'ألغاز الإيموجي' : 'خمّن الرقم', [state.teams[0].name, state.teams[1].name], scores, isTie ? -1 : winIdx)}
           <div class="flex flex-wrap items-center justify-center gap-3">
             <button id="${restartId}" type="button"
               class="px-6 py-3.5 rounded-2xl bg-gradient-to-l from-cyan-500 to-amber-500 text-slate-950 font-black text-base shadow-lg active:scale-95 transition">
@@ -13228,9 +13241,243 @@
     }
 
     // =========================================================================
+    // 10e. SHARING: WHATSAPP, NATIVE SHARE, RESULT CARD, DAILY PUZZLE
+    // =========================================================================
+    const SITE_URL = 'https://tahaddi-alfiraq.com';
+    let currentShare = null;
+
+    function renderShareBar(game, names, scores, winIdx) {
+      currentShare = { game, names: names.slice(), scores: scores ? scores.slice() : null, winIdx };
+      return `
+        <div class="my-4 p-3.5 rounded-2xl bg-slate-900/70 border border-slate-700/70 text-center">
+          <div class="text-xs font-extrabold text-slate-300 mb-2.5">📣 شاركوا النتيجة مع العائلة والأصدقاء</div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <button type="button" data-share-action="whatsapp"
+              class="py-2.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm active:scale-95 transition">
+              💬 واتساب
+            </button>
+            <button type="button" data-share-action="card"
+              class="py-2.5 px-3 rounded-xl bg-gradient-to-l from-fuchsia-500 to-amber-400 text-slate-950 font-black text-sm active:scale-95 transition">
+              🖼️ صورة النتيجة
+            </button>
+            <button type="button" data-share-action="native"
+              class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 font-bold text-sm active:scale-95 transition">
+              📤 مشاركة / نسخ
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function buildShareText(d) {
+      const sc = d.scores ? ` بنتيجة ${Math.max(d.scores[0], d.scores[1])}-${Math.min(d.scores[0], d.scores[1])}` : '';
+      if (d.winIdx !== 0 && d.winIdx !== 1) {
+        return `🤝 تعادل مثير بين «${d.names[0]}» و«${d.names[1]}»${sc ? ` (${d.scores[0]}-${d.scores[1]})` : ''} في ${d.game} على «تحدي الفرق»! جرّبوها مع عائلتكم مجاناً 👇\n${SITE_URL}`;
+      }
+      return `🏆 فاز «${d.names[d.winIdx]}» على «${d.names[1 - d.winIdx]}»${sc} في ${d.game} على «تحدي الفرق»! جرّبوها مع عائلتكم مجاناً 👇\n${SITE_URL}`;
+    }
+
+    function openWhatsApp(text) {
+      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+    }
+
+    async function shareOrCopy(text) {
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: 'تحدي الفرق', text });
+          return;
+        } catch (e) {
+          if (e && e.name === 'AbortError') return;
+        }
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('تم نسخ النص — الصقه في أي تطبيق 📋', 'success');
+      } catch (e) {
+        showToast('لم نتمكن من النسخ تلقائياً', 'warn');
+      }
+    }
+
+    function fitFont(g, text, weight, maxSize, maxWidth) {
+      let size = maxSize;
+      do {
+        g.font = `${weight} ${size}px Cairo, Tahoma, sans-serif`;
+        if (g.measureText(text).width <= maxWidth) break;
+        size -= 4;
+      } while (size > 24);
+      return size;
+    }
+
+    function roundBox(g, x, y, w, h, r) {
+      g.beginPath();
+      if (g.roundRect) g.roundRect(x, y, w, h, r);
+      else g.rect(x, y, w, h);
+    }
+
+    async function makeResultCard(d) {
+      const c = document.createElement('canvas');
+      c.width = 1080;
+      c.height = 1080;
+      const g = c.getContext('2d');
+      try {
+        await Promise.all([document.fonts.load('900 80px Cairo'), document.fonts.load('700 40px Cairo')]);
+      } catch (e) {}
+
+      const bg = g.createLinearGradient(0, 0, 1080, 1080);
+      bg.addColorStop(0, '#0b1120');
+      bg.addColorStop(1, '#1e1b4b');
+      g.fillStyle = bg;
+      g.fillRect(0, 0, 1080, 1080);
+      g.direction = 'rtl';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+
+      g.fillStyle = '#fbbf24';
+      g.font = '900 68px Cairo, Tahoma, sans-serif';
+      g.fillText('🏆 تحدي الفرق', 540, 120);
+      g.fillStyle = '#94a3b8';
+      g.font = '700 42px Cairo, Tahoma, sans-serif';
+      g.fillText(d.game, 540, 200);
+
+      const headline = (d.winIdx === 0 || d.winIdx === 1) ? `فاز «${d.names[d.winIdx]}»!` : '🤝 تعادل مثير!';
+      g.fillStyle = '#ffffff';
+      fitFont(g, headline, 900, 84, 960);
+      g.fillText(headline, 540, 320);
+
+      const boxes = [
+        { x: 570, color: '#22d3ee', fill: 'rgba(6,182,212,0.16)' },
+        { x: 90, color: '#fbbf24', fill: 'rgba(245,158,11,0.16)' }
+      ];
+      boxes.forEach((b, i) => {
+        const won = d.winIdx === i;
+        roundBox(g, b.x, 420, 420, d.scores ? 330 : 220, 36);
+        g.fillStyle = b.fill;
+        g.fill();
+        g.lineWidth = won ? 10 : 4;
+        g.strokeStyle = won ? b.color : 'rgba(148,163,184,0.35)';
+        g.stroke();
+        g.fillStyle = b.color;
+        fitFont(g, d.names[i], 800, 50, 360);
+        g.fillText(`${won ? '👑 ' : ''}${d.names[i]}`, b.x + 210, 500);
+        if (d.scores) {
+          g.fillStyle = '#ffffff';
+          g.font = '900 150px Cairo, Tahoma, sans-serif';
+          g.fillText(String(d.scores[i]), b.x + 210, 650);
+        }
+      });
+
+      g.fillStyle = '#e2e8f0';
+      g.font = '700 44px Cairo, Tahoma, sans-serif';
+      g.fillText('العبوها مجاناً مع العائلة والأصدقاء 👇', 540, 870);
+      g.fillStyle = '#22d3ee';
+      g.font = '900 60px Cairo, Tahoma, sans-serif';
+      g.direction = 'ltr';
+      g.fillText('tahaddi-alfiraq.com', 540, 960);
+      return c;
+    }
+
+    async function shareResultCard(d) {
+      showToast('جاري تجهيز صورة النتيجة...', 'info');
+      const canvas = await makeResultCard(d);
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+      if (!blob) {
+        showToast('تعذر إنشاء الصورة', 'warn');
+        return;
+      }
+      const file = new File([blob], 'tahaddi-alfiraq-result.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], text: buildShareText(d) });
+          return;
+        } catch (e) {
+          if (e && e.name === 'AbortError') return;
+        }
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'tahaddi-alfiraq-result.png';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+      showToast('تم حفظ صورة النتيجة — شاركوها في الستوري 📸', 'success');
+    }
+
+    // --- Daily emoji puzzle (same puzzle for everyone on the same day) ---
+    function getDailyPuzzle() {
+      const now = new Date();
+      const dayNum = Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000);
+      return EMOJI_PUZZLES[(dayNum * 7) % EMOJI_PUZZLES.length];
+    }
+
+    function renderDailyPuzzle() {
+      const p = getDailyPuzzle();
+      return `
+        <div class="mt-5 p-4 rounded-2xl bg-gradient-to-b from-fuchsia-500/10 to-slate-900/60 border border-fuchsia-400/30 text-center">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-black text-fuchsia-300">🧩 لغز اليوم</span>
+            <span class="text-[11px] font-bold text-slate-400">${escapeHtml(p.cat)} • يتجدد يومياً</span>
+          </div>
+          <div class="text-4xl sm:text-5xl py-2" dir="ltr">${escapeHtml(p.emoji)}</div>
+          <div id="daily-answer" class="hidden mt-1 mb-2 text-lg font-black text-white animate-in">${escapeHtml(p.answer)}</div>
+          <div class="grid grid-cols-2 gap-2 mt-2">
+            <button type="button" data-daily-action="reveal"
+              class="py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 font-bold text-sm active:scale-95 transition">
+              👁 اكشف الإجابة
+            </button>
+            <button type="button" data-daily-action="share"
+              class="py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm active:scale-95 transition">
+              💬 تحدَّ أصدقاءك
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    document.addEventListener('click', (e) => {
+      const shareBtn = e.target.closest('[data-share-action]');
+      if (shareBtn && currentShare) {
+        SoundFX.click();
+        const action = shareBtn.dataset.shareAction;
+        if (action === 'whatsapp') openWhatsApp(buildShareText(currentShare));
+        else if (action === 'native') shareOrCopy(buildShareText(currentShare));
+        else if (action === 'card') shareResultCard(currentShare);
+        return;
+      }
+      const dailyBtn = e.target.closest('[data-daily-action]');
+      if (dailyBtn) {
+        SoundFX.click();
+        const p = getDailyPuzzle();
+        if (dailyBtn.dataset.dailyAction === 'reveal') {
+          const el = document.getElementById('daily-answer');
+          if (el) el.classList.toggle('hidden');
+        } else {
+          openWhatsApp(`🧩 لغز اليوم من «تحدي الفرق»:\n${p.emoji}\n(${p.cat}) — هل تعرف الإجابة؟ 🤔\nجرّب واكشف الإجابة هنا 👇\n${SITE_URL}`);
+        }
+        return;
+      }
+      const infoBtn = e.target.closest('[data-open-info]');
+      if (infoBtn) {
+        openInfoModal(infoBtn.dataset.openInfo);
+      }
+    });
+
+    // =========================================================================
     // 11. WEBSITE INFO PAGES (HOW TO PLAY, ABOUT, PRIVACY POLICY, ADS SETUP)
     // =========================================================================
     const INFO_PAGES = {
+      tv: {
+        title: '📺 العبوها على شاشة التلفزيون',
+        html: `
+          <p class="font-semibold text-white">ألعاب «تحدي الفرق» أمتع بكثير على شاشة كبيرة يراها الجميع، بينما يتحكم شخص واحد باللعبة من الجوال أو اللابتوب.</p>
+          <ul class="list-disc list-inside space-y-2 text-xs sm:text-sm">
+            <li><strong class="text-cyan-300">تلفزيون ذكي:</strong> افتح متصفح الإنترنت في التلفزيون واكتب <strong dir="ltr">tahaddi-alfiraq.com</strong>، ثم تحكم بالريموت أو بماوس.</li>
+            <li><strong class="text-cyan-300">جوال أندرويد:</strong> من القائمة السريعة اختر «Smart View» أو «بث الشاشة / Cast» واختر التلفزيون، ثم افتح الموقع في الجوال.</li>
+            <li><strong class="text-cyan-300">آيفون:</strong> من مركز التحكم اختر «انعكاس الشاشة» (Screen Mirroring) إذا كان التلفزيون يدعم AirPlay أو لديك Apple TV.</li>
+            <li><strong class="text-cyan-300">لابتوب:</strong> صِل اللابتوب بالتلفزيون بكيبل HDMI، أو استخدم «بث» (Cast) من متصفح Chrome إلى جهاز Chromecast.</li>
+          </ul>
+          <p class="text-xs text-slate-400">💡 نصيحة: اجعل شخصاً واحداً «مقدّم المسابقة» يمسك الجهاز ويقرأ الأسئلة، وشغّلوا الصوت لتسمعوا المؤقت والمؤثرات. في «الكلمة الممنوعة» لا تعرضوا الشاشة على الفريق الذي يخمّن!</p>
+        `
+      },
       howto: {
         title: '📖 طريقة اللعب في تحدي الفرق',
         html: `
