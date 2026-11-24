@@ -10039,10 +10039,10 @@
       const freshCount = Math.max(0, totalQ - usedCount);
 
       return `
-        <div class="max-w-xl mx-auto animate-in py-2 sm:py-6">
-          <div class="glass-card rounded-3xl p-5 sm:p-8 shadow-2xl border border-slate-700/60">
+        <div class="max-w-xl lg:max-w-5xl mx-auto animate-in py-2 sm:py-6">
+          <div class="glass-card rounded-3xl p-5 sm:p-8 lg:p-10 shadow-2xl border border-slate-700/60">
             <div class="text-center mb-6">
-              <img src="/logo-600.png" alt="شعار وجه لوجه" width="160" height="160" class="mx-auto w-36 h-36 sm:w-40 sm:h-40 rounded-3xl mb-3 shadow-xl" />
+              <img src="/logo-600.png" alt="شعار وجه لوجه" width="160" height="160" class="mx-auto w-36 h-36 sm:w-40 sm:h-40 lg:w-56 lg:h-56 rounded-3xl mb-3 shadow-xl" />
               <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-xs font-bold mb-3">
                 <span>🎯</span>
                 <span>${freshCount} سؤال جديد متاح من أصل ${totalQ}</span>
@@ -10053,7 +10053,7 @@
               </p>
             </div>
 
-            <div class="space-y-4 mb-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6 lg:mb-8">
               <div>
                 <label for="input-team1" class="block text-xs font-extrabold text-cyan-400 mb-1.5">اسم الفريق الأول 🔵</label>
                 <input id="input-team1" type="text" maxlength="24" value="${escapeHtml(state.teams[0].name)}"
@@ -10068,46 +10068,46 @@
               </div>
             </div>
 
-            <div class="space-y-2.5">
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div class="space-y-2.5 lg:space-y-4">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 lg:gap-4">
                 <button id="btn-go-select" type="button"
-                  class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-l from-cyan-500 to-sky-500 text-slate-950 font-black text-sm sm:text-base shadow-xl shadow-cyan-500/20 active:scale-[0.98] transition flex flex-col items-center justify-center gap-0.5">
-                  <span>🏆 تحدي التصانيف</span>
-                  <span class="text-[11px] font-bold opacity-80">34 تصنيفاً • 1700 سؤال</span>
+                  class="w-full py-3.5 px-4 lg:py-7 rounded-2xl bg-gradient-to-l from-cyan-500 to-sky-500 text-slate-950 font-black text-sm sm:text-base shadow-xl shadow-cyan-500/20 active:scale-[0.98] transition flex flex-col items-center justify-center gap-1.5">
+                  <img src="/g-tasaneef.svg" alt="" width="64" height="64" class="w-14 h-14 sm:w-16 sm:h-16 lg:w-24 lg:h-24 shrink-0 drop-shadow-md" />
+                  <span class="flex flex-col items-center gap-0.5"><span class="lg:text-xl">تحدي التصانيف</span><span class="text-[11px] font-bold opacity-80">34 تصنيفاً • 1700 سؤال</span></span>
                 </button>
                 <button id="btn-go-cell" type="button"
-                  class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-l from-cyan-500 via-sky-500 to-amber-500 text-slate-950 font-black text-sm sm:text-base shadow-xl shadow-sky-500/20 active:scale-[0.98] transition flex flex-col items-center justify-center gap-0.5">
-                  <span>⬡ لعبة الخلية</span>
-                  <span class="text-[11px] font-bold opacity-85">خلية الحروف • 168 سؤالاً</span>
+                  class="w-full py-3.5 px-4 lg:py-7 rounded-2xl bg-gradient-to-l from-cyan-500 via-sky-500 to-amber-500 text-slate-950 font-black text-sm sm:text-base shadow-xl shadow-sky-500/20 active:scale-[0.98] transition flex flex-col items-center justify-center gap-1.5">
+                  <img src="/g-khaliya.svg" alt="" width="64" height="64" class="w-14 h-14 sm:w-16 sm:h-16 lg:w-24 lg:h-24 shrink-0 drop-shadow-md" />
+                  <span class="flex flex-col items-center gap-0.5"><span class="lg:text-xl">لعبة الخلية</span><span class="text-[11px] font-bold opacity-85">خلية الحروف • 168 سؤالاً</span></span>
                 </button>
               </div>
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 lg:gap-4">
                 <button id="btn-go-auction" type="button"
-                  class="w-full py-3 px-3 rounded-2xl bg-gradient-to-l from-amber-500 to-yellow-400 text-slate-950 font-black text-sm shadow-lg shadow-amber-500/15 active:scale-[0.98] transition flex flex-col items-center justify-center gap-0.5">
-                  <span>🔨 لعبة المزاد</span>
-                  <span class="text-[11px] font-bold opacity-85">14 تصنيفاً • 140 موضوعاً</span>
+                  class="w-full py-3 px-3 lg:py-6 rounded-2xl bg-gradient-to-l from-amber-500 to-yellow-400 text-slate-950 font-black text-sm shadow-lg shadow-amber-500/15 active:scale-[0.98] transition flex flex-col items-center justify-center gap-1.5">
+                  <img src="/g-mazad.svg" alt="" width="64" height="64" class="w-14 h-14 sm:w-16 sm:h-16 lg:w-24 lg:h-24 shrink-0 drop-shadow-md" />
+                  <span class="flex flex-col items-center gap-0.5"><span class="lg:text-xl">لعبة المزاد</span><span class="text-[11px] font-bold opacity-85">14 تصنيفاً • 140 موضوعاً</span></span>
                 </button>
                 <button id="btn-go-taboo" type="button"
-                  class="w-full py-3 px-3 rounded-2xl bg-slate-800/95 hover:bg-slate-700/95 border-2 border-cyan-400/50 text-white font-black text-sm shadow-lg active:scale-[0.98] transition flex flex-col items-center justify-center gap-0.5">
-                  <span>🚫 الكلمة الممنوعة</span>
-                  <span class="text-[11px] font-bold text-cyan-300">120 بطاقة • 6 كلمات ممنوعة</span>
+                  class="w-full py-3 px-3 lg:py-6 rounded-2xl bg-slate-800/95 hover:bg-slate-700/95 border-2 border-cyan-400/50 text-white font-black text-sm shadow-lg active:scale-[0.98] transition flex flex-col items-center justify-center gap-1.5">
+                  <img src="/g-kalima.svg" alt="" width="64" height="64" class="w-14 h-14 sm:w-16 sm:h-16 lg:w-24 lg:h-24 shrink-0 drop-shadow-md" />
+                  <span class="flex flex-col items-center gap-0.5"><span class="lg:text-xl">الكلمة الممنوعة</span><span class="text-[11px] font-bold text-cyan-300">120 بطاقة • 6 كلمات ممنوعة</span></span>
                 </button>
                 <button id="btn-go-clues" type="button"
-                  class="w-full py-3 px-3 rounded-2xl bg-slate-800/95 hover:bg-slate-700/95 border-2 border-amber-400/50 text-white font-black text-sm shadow-lg active:scale-[0.98] transition flex flex-col items-center justify-center gap-0.5">
-                  <span>🔍 التلميحات المتدرجة</span>
-                  <span class="text-[11px] font-bold text-amber-300">40 لغزاً • 500 إلى 100</span>
+                  class="w-full py-3 px-3 lg:py-6 rounded-2xl bg-slate-800/95 hover:bg-slate-700/95 border-2 border-amber-400/50 text-white font-black text-sm shadow-lg active:scale-[0.98] transition flex flex-col items-center justify-center gap-1.5">
+                  <img src="/g-talmihat.svg" alt="" width="64" height="64" class="w-14 h-14 sm:w-16 sm:h-16 lg:w-24 lg:h-24 shrink-0 drop-shadow-md" />
+                  <span class="flex flex-col items-center gap-0.5"><span class="lg:text-xl">التلميحات المتدرجة</span><span class="text-[11px] font-bold text-amber-300">40 لغزاً • 500 إلى 100</span></span>
                 </button>
               </div>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 lg:gap-4">
                 <button id="btn-go-emoji" type="button"
-                  class="w-full py-3 px-3 rounded-2xl bg-gradient-to-l from-fuchsia-500 to-pink-400 text-slate-950 font-black text-sm shadow-lg shadow-fuchsia-500/15 active:scale-[0.98] transition flex flex-col items-center justify-center gap-0.5">
-                  <span>😀 ألغاز الإيموجي</span>
-                  <span class="text-[11px] font-bold opacity-85">80 لغزاً • 30 ثانية</span>
+                  class="w-full py-3 px-3 lg:py-6 rounded-2xl bg-gradient-to-l from-fuchsia-500 to-pink-400 text-slate-950 font-black text-sm shadow-lg shadow-fuchsia-500/15 active:scale-[0.98] transition flex flex-col items-center justify-center gap-1.5">
+                  <img src="/g-emoji.svg" alt="" width="64" height="64" class="w-14 h-14 sm:w-16 sm:h-16 lg:w-24 lg:h-24 shrink-0 drop-shadow-md" />
+                  <span class="flex flex-col items-center gap-0.5"><span class="lg:text-xl">ألغاز الإيموجي</span><span class="text-[11px] font-bold opacity-85">80 لغزاً • 30 ثانية</span></span>
                 </button>
                 <button id="btn-go-number" type="button"
-                  class="w-full py-3 px-3 rounded-2xl bg-gradient-to-l from-emerald-500 to-teal-400 text-slate-950 font-black text-sm shadow-lg shadow-emerald-500/15 active:scale-[0.98] transition flex flex-col items-center justify-center gap-0.5">
-                  <span>🎯 خمّن الرقم</span>
-                  <span class="text-[11px] font-bold opacity-85">60 سؤالاً • الأقرب يفوز</span>
+                  class="w-full py-3 px-3 lg:py-6 rounded-2xl bg-gradient-to-l from-emerald-500 to-teal-400 text-slate-950 font-black text-sm shadow-lg shadow-emerald-500/15 active:scale-[0.98] transition flex flex-col items-center justify-center gap-1.5">
+                  <img src="/g-number.svg" alt="" width="64" height="64" class="w-14 h-14 sm:w-16 sm:h-16 lg:w-24 lg:h-24 shrink-0 drop-shadow-md" />
+                  <span class="flex flex-col items-center gap-0.5"><span class="lg:text-xl">خمّن الرقم</span><span class="text-[11px] font-bold opacity-85">60 سؤالاً • الأقرب يفوز</span></span>
                 </button>
               </div>
             </div>
