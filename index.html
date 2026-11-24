@@ -11811,8 +11811,8 @@
         }
       } else {
         SoundFX.wrong();
-        h.turn = h.turn === 'orange' ? 'green' : 'orange';
-        showToast('بقيت الخلية متاحة وانتقل الدور للفريق الآخر', 'info');
+        // No one answered: the team that picked the letter keeps the turn
+        showToast(`بقيت الخلية متاحة والدور ما زال لـ ${h.turn === 'orange' ? h.orangeName : h.greenName}`, 'info');
       }
 
       clearTimer();
