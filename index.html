@@ -11681,7 +11681,7 @@
               </div>
               <button type="button" data-hex-award="none"
                 class="w-full py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold text-sm active:scale-95 transition">
-                ❌ لم يُجب أحد (تبقى الخلية متاحة)
+                ❌ لم يُجب أحد (سؤال آخر)
               </button>
             </div>
           ` : `
@@ -11721,7 +11721,7 @@
               </div>
               <button type="button" data-hex-award="none"
                 class="w-full py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold text-sm active:scale-95 transition">
-                ❌ لم يُجب أحد (تبقى الخلية متاحة)
+                ❌ لم يُجب أحد (سؤال آخر)
               </button>
             </div>
           `}
@@ -11811,8 +11811,13 @@
         }
       } else {
         SoundFX.wrong();
-        // No one answered: the team that picked the letter keeps the turn
-        showToast(`بقيت الخلية متاحة والدور ما زال لـ ${h.turn === 'orange' ? h.orangeName : h.greenName}`, 'info');
+        // No one answered: same team keeps the turn and gets another question for the same cell
+        clearTimer();
+        state.hex.activeCell = null;
+        render();
+        openHexQuestionModal(ac.r, ac.c);
+        showToast(`سؤال آخر لحرف «${ac.letter}»`, 'info');
+        return;
       }
 
       clearTimer();
