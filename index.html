@@ -14496,6 +14496,7 @@
           <ul class="list-disc list-inside space-y-2 text-xs sm:text-sm">
             <li><strong>التخزين المحلي (Local Storage):</strong> نستخدم ذاكرة المتصفح المحلية فقط لحفظ الأسئلة التي لعبتموها مسبقاً (لمنع تكرارها) وإعدادات الصوت والمؤقت.</li>
             <li><strong>لعبة ارسم وخمّن:</strong> لربط جوال الرسّام بالشاشة الرئيسية نستخدم خدمة PeerJS المجانية لتعريف الجهازين ببعضهما، ثم ينتقل الرسم مباشرة بين الجهازين ولا يُحفظ على أي خادم. لا نرسل أي بيانات شخصية.</li>
+            <li><strong>إحصائيات الزيارات:</strong> نستخدم Cloudflare Web Analytics لمعرفة عدد الزيارات والصفحات الأكثر استخداماً. لا يستخدم ملفات تعريف الارتباط ولا يتتبع الزوار كأفراد.</li>
             <li><strong>إعلانات Google AdSense:</strong> قد يستخدم الموقع خدمات إعلانية من طرف ثالث مثل Google AdSense، والتي قد تستخدم ملفات تعريف الارتباط (Cookies) لعرض إعلانات ملائمة بناءً على زياراتك السابقة. يمكنك إدارة تفضيلات الإعلانات عبر إعدادات إعلانات جوجل.</li>
             <li><strong>الموافقة والتواصل:</strong> باستخدامك للموقع فإنك توافق على سياسة الخصوصية هذه. لأي استفسار يمكنك التواصل مع إدارة الموقع عبر البريد المعتمد في صفحة النطاق.</li>
           </ul>
@@ -14552,5 +14553,6 @@
     if (drawParam) startDrawerApp(drawParam);
     else render();
   </script>
+  <!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "a5c64b96739b4bb4bcfc943876428178"}'></script><!-- End Cloudflare Web Analytics -->
 </body>
 </html>
