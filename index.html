@@ -9729,6 +9729,7 @@
         timeUp: () => { beep(300, 0.18, 'sawtooth', 0.12); beep(220, 0.3, 'sawtooth', 0.12, 0.18); },
         transfer: () => { beep(480, 0.09, 'triangle', 0.11); beep(360, 0.12, 'triangle', 0.11, 0.08); },
         reveal: () => { beep(523, 0.08, 'sine', 0.1); beep(659, 0.12, 'sine', 0.1, 0.07); },
+        buzz: () => { beep(988, 0.12, 'square', 0.12); beep(1318, 0.25, 'square', 0.12, 0.1); },
         correct: () => {
           beep(523, 0.1, 'triangle', 0.14, 0);
           beep(659, 0.1, 'triangle', 0.14, 0.09);
@@ -10034,6 +10035,7 @@
     // =========================================================================
     function render() {
       const main = document.getElementById('main-content');
+      if (state.screen !== 'cell' && BuzzNet.on) buzzStopHost();
       updateHeaderControls();
       if (state.screen === 'setup') {
         main.innerHTML = renderSetupScreen();
@@ -10077,6 +10079,9 @@
       } else if (state.screen === 'npaPlayer') {
         main.innerHTML = renderNpaPlayerScreen();
         bindNpaPlayerEvents();
+      } else if (state.screen === 'buzzer') {
+        main.innerHTML = renderBuzzerScreen();
+        bindBuzzerEvents();
       }
     }
 
@@ -11550,7 +11555,10 @@
                 ? 'انتهت الجولة! المسار الفائز محدّد باللون الذهبي.'
                 : `دور <span class="${isOrangeTurn ? 'text-cyan-400' : 'text-amber-400'} font-black">${escapeHtml(isOrangeTurn ? h.orangeName : h.greenName)}</span> لاختيار حرف من الخلية`}
             </div>
-            <div class="flex items-center gap-1.5 shrink-0">
+            <div class="flex flex-wrap items-center gap-1.5 shrink-0">
+              ${!BuzzNet.on && !h.winner ? `<button id="btn-hex-buzz" type="button" title="زر جرس لكل فريق في الجوال" class="text-[11px] font-black px-2.5 py-1.5 rounded-lg bg-violet-500/20 hover:bg-violet-500/30 border border-violet-400/60 text-violet-100 transition">
+                🔔 زر الجرس
+              </button>` : ''}
               <button id="btn-hex-swap" type="button" class="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition">
                 ⇄ تبديل الدور
               </button>
@@ -11566,6 +11574,8 @@
               </button>
             </div>
           </div>
+
+          ${h.winner ? '' : renderBuzzPanel()}
 
           <!-- Hex Grid Board -->
           <div class="glass-card rounded-3xl p-2 sm:p-4 border border-slate-700/70 bg-slate-950/70 shadow-2xl">
@@ -11611,6 +11621,8 @@
           openHexQuestionModal(r, c);
         });
       });
+
+      bindBuzzPanel();
 
       const swapBtn = document.getElementById('btn-hex-swap');
       if (swapBtn) {
@@ -11696,6 +11708,7 @@
       modal.classList.add('flex');
       renderHexQuestionModal();
       startHexTimer();
+      buzzReset();
     }
 
     function startHexTimer() {
@@ -11745,6 +11758,7 @@
         </div>
 
         <div class="p-4 sm:p-6 space-y-4">
+          <div id="hex-buzz-box"></div>
           <!-- Turn & Timer -->
           <div class="rounded-2xl p-3 border-2 ${isOrange ? 'bg-cyan-500/15 border-cyan-400/70' : 'bg-amber-500/15 border-amber-400/70'} flex flex-wrap items-center justify-between gap-2">
             <div>
@@ -11836,6 +11850,7 @@
       `;
 
       document.getElementById('btn-hex-close').addEventListener('click', closeHexModal);
+      buzzPaintHost(true);
 
       const pauseBtn = document.getElementById('btn-hex-pause');
       if (pauseBtn) {
@@ -11854,6 +11869,7 @@
           ac.timeLeft = state.timerSeconds;
           ac.paused = false;
           renderHexQuestionModal();
+          buzzReset();
         });
       }
 
@@ -11864,6 +11880,7 @@
           ac.revealed = true;
           clearTimer();
           renderHexQuestionModal();
+          buzzReset();
         });
       }
 
@@ -11881,6 +11898,7 @@
       const modal = document.getElementById('question-modal');
       modal.classList.add('hidden');
       modal.classList.remove('flex');
+      buzzReset();
     }
 
     function finalizeHexCell(award) {
@@ -11932,6 +11950,7 @@
       modal.classList.add('hidden');
       modal.classList.remove('flex');
       render();
+      buzzReset();
     }
 
 
@@ -14841,6 +14860,452 @@
     }
 
     // =========================================================================
+    // 10h. LETTER CELL BUZZERS («زر الجرس», optional)
+    // Each team scans its own QR code and gets a buzzer on its phone. While a
+    // question is open, the first team to press has 5 s to answer; then it is
+    // locked out for 3 s. Same PeerJS approach as 10f / 10g.
+    // =========================================================================
+    const BUZZ_ANSWER_MS = 5000;
+    const BUZZ_LOCK_MS = 3000;
+    const BuzzNet = { on: false, peer: null, conns: [null, null], hostId: null, status: 'idle', error: '' };
+    const Buzz = { holder: null, holdEnd: 0, lockEnd: [0, 0], holdTimer: null, unlockTimers: [null, null], tick: null };
+
+    function buzzTeamName(team) { return team === 0 ? state.hex.orangeName : state.hex.greenName; }
+    function buzzJoinUrl(team) { return `${location.origin}/?buzz=${encodeURIComponent(BuzzNet.hostId || '')}&team=${team}`; }
+    function buzzArmed() {
+      const ac = state.hex.activeCell;
+      return state.screen === 'cell' && BuzzNet.on && !!ac && (ac.custom || !ac.revealed) && !state.hex.winner;
+    }
+    function buzzRefreshBoard() {
+      if (state.screen === 'cell') render();
+      buzzPaintHost(true);
+    }
+
+    async function buzzStartHost() {
+      if (BuzzNet.peer && !BuzzNet.peer.destroyed) return;
+      BuzzNet.status = 'connecting';
+      BuzzNet.error = '';
+      try {
+        await Promise.all([loadScriptOnce(DRAW_LIBS.peer), loadScriptOnce(DRAW_LIBS.qr)]);
+      } catch (e) {
+        BuzzNet.status = 'error';
+        BuzzNet.error = 'تعذّر تحميل أدوات الاتصال. تأكدوا من الإنترنت ثم أعيدوا المحاولة.';
+        buzzRefreshBoard();
+        return;
+      }
+      if (!BuzzNet.on) return;
+      const peer = new Peer(drawRandomId());
+      BuzzNet.peer = peer;
+      peer.on('open', id => {
+        if (BuzzNet.peer !== peer) return;
+        BuzzNet.hostId = id;
+        BuzzNet.status = 'ready';
+        buzzRefreshBoard();
+      });
+      peer.on('connection', conn => buzzHostAccept(conn));
+      peer.on('disconnected', () => {
+        if (BuzzNet.peer === peer && !peer.destroyed) {
+          try { peer.reconnect(); } catch (e) {}
+        }
+      });
+      peer.on('error', err => {
+        if (BuzzNet.peer !== peer) return;
+        const type = err && err.type;
+        if (type === 'unavailable-id') {
+          peer.destroy();
+          BuzzNet.peer = null;
+          buzzStartHost();
+          return;
+        }
+        if (BuzzNet.status === 'ready' && ['network', 'server-error', 'socket-error', 'socket-closed', 'peer-unavailable'].includes(type)) return;
+        BuzzNet.status = 'error';
+        BuzzNet.error = 'تعذّر تجهيز الاتصال. تأكدوا من الإنترنت ثم أعيدوا المحاولة.';
+        buzzRefreshBoard();
+      });
+    }
+
+    function buzzSend(team, msg) {
+      const c = BuzzNet.conns[team];
+      if (c && c.open) {
+        try { c.send(msg); } catch (e) {}
+      }
+    }
+
+    function buzzDropConn(team, msg) {
+      const c = BuzzNet.conns[team];
+      BuzzNet.conns[team] = null;
+      if (!c) return;
+      try { if (c.open) c.send({ t: 'bye', msg }); } catch (e) {}
+      setTimeout(() => { try { c.close(); } catch (e) {} }, 400);
+    }
+
+    function buzzClearTimers() {
+      clearTimeout(Buzz.holdTimer);
+      Buzz.unlockTimers.forEach(t => clearTimeout(t));
+      clearInterval(Buzz.tick);
+      Buzz.tick = null;
+    }
+
+    function buzzStopHost() {
+      buzzClearTimers();
+      Buzz.holder = null;
+      Buzz.lockEnd = [0, 0];
+      [0, 1].forEach(t => buzzDropConn(t, 'أُوقف زر الجرس على الشاشة الرئيسية'));
+      if (BuzzNet.peer) {
+        const p = BuzzNet.peer;
+        BuzzNet.peer = null;
+        setTimeout(() => { try { p.destroy(); } catch (e) {} }, 500);
+      }
+      BuzzNet.hostId = null;
+      BuzzNet.status = 'idle';
+      BuzzNet.on = false;
+    }
+
+    function buzzStateFor(team) {
+      const now = Date.now();
+      const armed = buzzArmed();
+      const hd = Buzz.holder;
+      return {
+        t: 'state',
+        team,
+        teamName: buzzTeamName(team),
+        otherName: buzzTeamName(1 - team),
+        armed,
+        letter: armed ? state.hex.activeCell.letter : '',
+        holder: hd === null ? null : (hd === team ? 'me' : 'other'),
+        holdMs: hd === null ? 0 : Math.max(0, Buzz.holdEnd - now),
+        lockMs: Math.max(0, Buzz.lockEnd[team] - now)
+      };
+    }
+
+    function buzzBroadcast() {
+      [0, 1].forEach(t => buzzSend(t, buzzStateFor(t)));
+      buzzPaintHost();
+    }
+
+    function buzzEnsureTick() {
+      if (Buzz.tick) return;
+      Buzz.tick = setInterval(() => {
+        buzzPaintHost();
+        if (Buzz.holder === null && Date.now() >= Math.max(Buzz.lockEnd[0], Buzz.lockEnd[1])) {
+          clearInterval(Buzz.tick);
+          Buzz.tick = null;
+        }
+      }, 200);
+    }
+
+    // New question / question closed / answer revealed: clear holder and lockouts.
+    function buzzReset() {
+      if (!BuzzNet.on) return;
+      buzzClearTimers();
+      Buzz.holder = null;
+      Buzz.lockEnd = [0, 0];
+      buzzBroadcast();
+    }
+
+    function buzzPress(team) {
+      if (!buzzArmed() || Buzz.holder !== null || Date.now() < Buzz.lockEnd[team]) {
+        buzzSend(team, buzzStateFor(team));
+        return;
+      }
+      Buzz.holder = team;
+      Buzz.holdEnd = Date.now() + BUZZ_ANSWER_MS;
+      SoundFX.buzz();
+      clearTimeout(Buzz.holdTimer);
+      Buzz.holdTimer = setTimeout(buzzEndHold, BUZZ_ANSWER_MS);
+      buzzBroadcast();
+      buzzEnsureTick();
+    }
+
+    // The answering team's 5 seconds are over (or the host marked the answer wrong).
+    function buzzEndHold() {
+      const t = Buzz.holder;
+      if (t === null) return;
+      clearTimeout(Buzz.holdTimer);
+      Buzz.holder = null;
+      Buzz.lockEnd[t] = Date.now() + BUZZ_LOCK_MS;
+      SoundFX.timeUp();
+      clearTimeout(Buzz.unlockTimers[t]);
+      Buzz.unlockTimers[t] = setTimeout(buzzBroadcast, BUZZ_LOCK_MS + 30);
+      buzzBroadcast();
+      buzzEnsureTick();
+    }
+
+    function buzzHostAccept(conn) {
+      const team = conn.metadata && (conn.metadata.team === 1 || conn.metadata.team === '1') ? 1 : 0;
+      conn.on('open', () => {
+        if (state.screen !== 'cell' || !BuzzNet.on) {
+          try { conn.send({ t: 'bye', msg: 'زر الجرس غير مفعّل الآن على الشاشة الرئيسية' }); } catch (e) {}
+          setTimeout(() => { try { conn.close(); } catch (e) {} }, 400);
+          return;
+        }
+        if (BuzzNet.conns[team] && BuzzNet.conns[team] !== conn) buzzDropConn(team, 'انضم جوال آخر لنفس الفريق');
+        BuzzNet.conns[team] = conn;
+        SoundFX.select();
+        conn.send(buzzStateFor(team));
+        buzzRefreshBoard();
+      });
+      conn.on('data', msg => {
+        if (conn !== BuzzNet.conns[team] || !msg || typeof msg !== 'object') return;
+        if (msg.t === 'buzz') buzzPress(team);
+      });
+      conn.on('close', () => {
+        if (BuzzNet.conns[team] !== conn) return;
+        BuzzNet.conns[team] = null;
+        buzzRefreshBoard();
+      });
+    }
+
+    // Status box inside the question modal. Rebuilds only when the layout changes,
+    // otherwise just updates the countdown numbers (so buttons stay clickable).
+    function buzzPaintHost(force) {
+      const el = document.getElementById('hex-buzz-box');
+      if (!el) return;
+      if (!BuzzNet.on) { el.innerHTML = ''; el.dataset.key = ''; return; }
+      const now = Date.now();
+      const conn = [0, 1].map(t => !!BuzzNet.conns[t]);
+      const hd = Buzz.holder;
+      const lockSec = t => Math.max(0, Math.ceil((Buzz.lockEnd[t] - now) / 1000));
+      const stText = t => !conn[t] ? '⚠️ غير متصل' : lockSec(t) > 0 ? `🔒 ممنوع ${lockSec(t)} ث` : '✅ جاهز';
+      const key = hd !== null ? `hold-${hd}` : `idle-${buzzArmed()}-${conn.join('')}`;
+      if (!force && el.dataset.key === key) {
+        const s = el.querySelector('[data-buzz-sec]');
+        if (s) s.textContent = String(Math.max(0, Math.ceil((Buzz.holdEnd - now) / 1000)));
+        el.querySelectorAll('[data-buzz-st]').forEach(x => { x.textContent = stText(Number(x.dataset.buzzSt)); });
+        return;
+      }
+      el.dataset.key = key;
+      if (hd !== null) {
+        const c = hd === 0 ? 'cyan' : 'amber';
+        el.innerHTML = `
+          <div class="p-3 rounded-2xl border-2 border-${c}-400 bg-${c}-500/25 flex items-center justify-between gap-3 animate-in">
+            <div class="min-w-0">
+              <div class="text-[11px] font-bold text-${c}-200">🔔 ضغط الجرس أولاً</div>
+              <div class="text-lg sm:text-2xl font-black text-white truncate">${hd === 0 ? '🔵' : '🟡'} ${escapeHtml(buzzTeamName(hd))} يجيب الآن</div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <span data-buzz-sec class="text-4xl sm:text-5xl font-black tabular-nums text-white">${Math.max(0, Math.ceil((Buzz.holdEnd - now) / 1000))}</span>
+              <button type="button" data-buzz-wrong class="px-3 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-600 text-xs font-bold text-rose-200">❌ خطأ</button>
+            </div>
+          </div>`;
+        const w = el.querySelector('[data-buzz-wrong]');
+        if (w) w.addEventListener('click', () => buzzEndHold());
+        return;
+      }
+      const chip = t => `<span class="px-2.5 py-1 rounded-full bg-slate-950/60 border ${t === 0 ? 'border-cyan-400/50 text-cyan-200' : 'border-amber-400/50 text-amber-200'}">${t === 0 ? '🔵' : '🟡'} ${escapeHtml(buzzTeamName(t))}: <b data-buzz-st="${t}">${stText(t)}</b></span>`;
+      el.innerHTML = `
+        <div class="p-2.5 rounded-2xl bg-violet-500/10 border border-violet-400/40 text-center space-y-1.5">
+          <div class="text-xs sm:text-sm font-black text-violet-100">🔔 ${buzzArmed() ? 'الجرس مفعّل: أول فريق يضغط يجيب خلال 5 ثوانٍ' : 'الجرس متوقف حتى السؤال التالي'}</div>
+          <div class="flex flex-wrap justify-center gap-2 text-[11px] font-bold">${chip(0)}${chip(1)}</div>
+        </div>`;
+    }
+
+    // Panel on the board screen: one QR code per team, or "connected".
+    function renderBuzzPanel() {
+      if (!BuzzNet.on) return '';
+      const both = !!(BuzzNet.conns[0] && BuzzNet.conns[1]);
+      const box = t => {
+        const c = t === 0 ? 'cyan' : 'amber';
+        let inner;
+        if (BuzzNet.conns[t]) inner = `<div class="py-1 text-sm font-black text-emerald-300">✅ متصل</div>`;
+        else if (BuzzNet.status === 'ready' && BuzzNet.hostId) inner = `<div id="bz-qr-${t}" class="bg-white p-2 rounded-xl w-32 h-32 sm:w-40 sm:h-40 mx-auto"></div><div class="text-[10px] font-bold text-slate-400 mt-1">امسحوه بجوال واحد من الفريق</div>`;
+        else if (BuzzNet.status === 'error') inner = `<div class="py-2 text-xs font-bold text-rose-300">⚠️ غير متصل</div>`;
+        else inner = `<div class="py-8 text-xs font-bold text-slate-300">⏳ جاري تجهيز الاتصال…</div>`;
+        return `<div class="p-2.5 rounded-2xl border-2 border-${c}-400/60 bg-${c}-500/10 text-center">
+            <div class="text-sm font-black text-${c}-300 mb-1 truncate">${t === 0 ? '🔵' : '🟡'} ${escapeHtml(buzzTeamName(t))}</div>
+            ${inner}
+          </div>`;
+      };
+      return `
+        <div class="mb-3 glass-card rounded-2xl p-3 border border-violet-400/50 space-y-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs sm:text-sm font-black text-violet-100">🔔 زر الجرس: ${both ? 'الجوالان متصلان ✅' : 'كل فريق يمسح الكود الخاص به'}</span>
+            <button id="btn-buzz-off" type="button" class="shrink-0 text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200">إيقاف الجرس</button>
+          </div>
+          ${BuzzNet.status === 'error' ? `<div class="p-2.5 rounded-xl bg-rose-500/10 border border-rose-400/50 text-center space-y-2"><p class="text-xs font-bold text-rose-200">${escapeHtml(BuzzNet.error)}</p><button id="btn-buzz-retry" type="button" class="px-4 py-2 rounded-xl bg-slate-800 border border-slate-600 text-white font-bold text-xs">🔄 إعادة المحاولة</button></div>` : ''}
+          ${both ? '' : `<div class="grid grid-cols-2 gap-2.5">${box(0)}${box(1)}</div>`}
+          <p class="text-[11px] font-bold text-slate-400 text-center">عند ظهور السؤال، أول فريق يضغط الجرس له 5 ثوانٍ ليجيب، ثم يُمنع من الضغط 3 ثوانٍ.</p>
+        </div>`;
+    }
+
+    function bindBuzzPanel() {
+      const onBtn = document.getElementById('btn-hex-buzz');
+      if (onBtn) onBtn.addEventListener('click', () => {
+        SoundFX.select();
+        BuzzNet.on = true;
+        buzzStartHost();
+        render();
+      });
+      const offBtn = document.getElementById('btn-buzz-off');
+      if (offBtn) offBtn.addEventListener('click', () => { SoundFX.click(); buzzStopHost(); render(); });
+      const retry = document.getElementById('btn-buzz-retry');
+      if (retry) retry.addEventListener('click', () => {
+        SoundFX.click();
+        buzzStopHost();
+        BuzzNet.on = true;
+        buzzStartHost();
+        render();
+      });
+      if (typeof qrcode !== 'function' || !BuzzNet.hostId) return;
+      [0, 1].forEach(team => {
+        const el = document.getElementById(`bz-qr-${team}`);
+        if (!el) return;
+        const qr = qrcode(0, 'M');
+        qr.addData(buzzJoinUrl(team));
+        qr.make();
+        el.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 1, scalable: true });
+        const svg = el.querySelector('svg');
+        if (svg) { svg.setAttribute('width', '100%'); svg.setAttribute('height', '100%'); }
+      });
+    }
+
+    // --- phone (team buzzer) ---
+    const BuzzPlayer = { peer: null, conn: null, hostId: null, team: 0, phase: 'connecting', msg: '', st: null, stAt: 0, tick: null, sig: '', pending: false };
+
+    async function startBuzzPlayerApp(hostId, team) {
+      BuzzPlayer.hostId = hostId;
+      BuzzPlayer.team = team === 1 ? 1 : 0;
+      state.screen = 'buzzer';
+      document.querySelectorAll('footer').forEach(el => { el.style.display = 'none'; });
+      render();
+      try {
+        await loadScriptOnce(DRAW_LIBS.peer);
+      } catch (e) {
+        BuzzPlayer.phase = 'error';
+        BuzzPlayer.msg = 'تعذّر التحميل. تأكد من اتصال الإنترنت ثم أعد المحاولة.';
+        render();
+        return;
+      }
+      buzzPlayerConnect();
+    }
+
+    function buzzPlayerConnect() {
+      const P = BuzzPlayer;
+      P.phase = 'connecting';
+      render();
+      if (P.peer) { try { P.peer.destroy(); } catch (e) {} }
+      const peer = new Peer();
+      P.peer = peer;
+      let opened = false;
+      const fail = msg => {
+        if (opened || P.peer !== peer) return;
+        P.phase = 'error';
+        P.msg = msg;
+        render();
+      };
+      const timeout = setTimeout(() => fail('لم نتمكن من الوصول للشاشة الرئيسية. تأكد أن لعبة الخلية مفتوحة عليها، وجرّب أن يكون الجهازان على نفس شبكة الواي فاي.'), 20000);
+      peer.on('error', err => {
+        clearTimeout(timeout);
+        fail(err && err.type === 'peer-unavailable'
+          ? 'هذا الكود لم يعد يعمل. امسح الكود الظاهر الآن على الشاشة الرئيسية.'
+          : 'تعذّر الاتصال. تأكد من الإنترنت ثم أعد المحاولة.');
+      });
+      peer.on('open', () => {
+        const conn = peer.connect(P.hostId, { reliable: true, metadata: { team: P.team } });
+        P.conn = conn;
+        conn.on('open', () => { opened = true; clearTimeout(timeout); });
+        conn.on('data', buzzPlayerOnData);
+        conn.on('close', () => {
+          if (P.conn !== conn) return;
+          if (P.phase !== 'bye') {
+            P.phase = 'error';
+            P.msg = 'انقطع الاتصال بالشاشة الرئيسية.';
+          }
+          render();
+        });
+      });
+    }
+
+    function buzzPlayerMode() {
+      const P = BuzzPlayer;
+      const st = P.st;
+      const el = Date.now() - P.stAt;
+      const hold = Math.max(0, st.holdMs - el);
+      const lock = Math.max(0, st.lockMs - el);
+      if (st.holder === 'me' && hold > 0) return { mode: 'me', n: Math.ceil(hold / 1000) };
+      if (st.holder === 'other' && hold > 0) return { mode: 'other', n: Math.ceil(hold / 1000) };
+      if (lock > 0) return { mode: 'lock', n: Math.ceil(lock / 1000) };
+      if (!st.armed) return { mode: 'wait', n: 0 };
+      return { mode: P.pending ? 'pending' : 'ready', n: 0 };
+    }
+
+    function buzzPlayerOnData(msg) {
+      if (!msg || typeof msg !== 'object') return;
+      const P = BuzzPlayer;
+      if (msg.t === 'state') {
+        const wasMe = P.st && P.st.holder === 'me';
+        P.st = msg;
+        P.stAt = Date.now();
+        P.pending = false;
+        P.phase = 'live';
+        if (msg.holder === 'me' && !wasMe && navigator.vibrate) navigator.vibrate(250);
+        P.sig = '';
+        render();
+        if (!P.tick) {
+          P.tick = setInterval(() => {
+            if (P.phase !== 'live' || !P.st) return;
+            const m = buzzPlayerMode();
+            if (`${m.mode}-${m.n}` !== P.sig) render();
+          }, 150);
+        }
+      } else if (msg.t === 'bye') {
+        P.phase = 'bye';
+        P.msg = String(msg.msg || '');
+        render();
+      }
+    }
+
+    function renderBuzzerScreen() {
+      const P = BuzzPlayer;
+      const st = P.st;
+      const color = P.team === 1 ? 'amber' : 'cyan';
+      const box = inner => `<div class="max-w-md mx-auto animate-in pb-6"><div class="glass-card rounded-3xl p-5 border-2 border-${color}-400/50 shadow-2xl space-y-4 text-center">${inner}</div></div>`;
+      if (P.phase === 'connecting') return box(`<div class="text-5xl">🔔</div><h2 class="text-xl font-black text-white">زر الجرس — لعبة الخلية</h2><p class="text-sm font-bold text-slate-300">⏳ جاري الاتصال بالشاشة الرئيسية…</p>`);
+      if (P.phase === 'error') return box(`<div class="text-5xl">⚠️</div><p class="text-sm font-bold text-rose-200">${escapeHtml(P.msg)}</p><button id="btn-bz-retry" type="button" class="w-full py-3.5 rounded-2xl bg-slate-800 border border-slate-600 text-white font-black">🔄 إعادة المحاولة</button>`);
+      if (P.phase === 'bye') return box(`<div class="text-5xl">👋</div><p class="text-base font-bold text-slate-200">${escapeHtml(P.msg || 'انتهى')}</p><p class="text-xs text-slate-500 font-semibold">يمكنك إغلاق هذه الصفحة.</p>`);
+      if (!st) return box(`<p class="text-sm font-bold text-slate-300">⏳ …</p>`);
+      const m = buzzPlayerMode();
+      P.sig = `${m.mode}-${m.n}`;
+      const views = {
+        ready: { cls: 'bg-rose-500 shadow-rose-500/40 active:scale-95', big: '🔔', text: 'اضغط!', sub: 'أول فريق يضغط يجيب' },
+        pending: { cls: 'bg-rose-500/70', big: '⏳', text: '…', sub: '' },
+        me: { cls: 'bg-emerald-500 shadow-emerald-500/40', big: m.n, text: 'أجيبوا الآن!', sub: 'قولوا الإجابة بصوت عالٍ' },
+        other: { cls: 'bg-slate-700', big: '✋', text: `${escapeHtml(st.otherName)} يجيب`, sub: `${m.n} ث` },
+        lock: { cls: 'bg-slate-700', big: '🔒', text: `انتظروا ${m.n} ث`, sub: 'ممنوع الضغط مؤقتاً' },
+        wait: { cls: 'bg-slate-800', big: '⏳', text: 'بانتظار السؤال', sub: 'يتفعّل الزر عند ظهور سؤال' }
+      };
+      const v = views[m.mode];
+      return `
+        <div class="max-w-md mx-auto pb-6 space-y-4 text-center animate-in select-none">
+          <div class="text-base font-black text-${color}-300">${P.team === 0 ? '🔵' : '🟡'} ${escapeHtml(st.teamName)}</div>
+          <div class="text-sm font-bold text-slate-400 h-6">${st.letter ? `سؤال حرف «<span class="text-white font-black">${st.letter}</span>»` : ''}</div>
+          <button id="btn-bz-press" type="button" ${m.mode === 'ready' ? '' : 'disabled'}
+            style="touch-action:manipulation;-webkit-tap-highlight-color:transparent"
+            class="mx-auto w-64 h-64 sm:w-72 sm:h-72 rounded-full ${v.cls} border-8 border-white/20 shadow-2xl flex flex-col items-center justify-center gap-1 text-white transition">
+            <span class="text-7xl font-black leading-none tabular-nums">${v.big}</span>
+            <span class="text-2xl font-black">${v.text}</span>
+          </button>
+          <div class="text-sm font-bold text-slate-300 h-5">${v.sub}</div>
+          <p class="text-[11px] font-bold text-slate-500">بعد الضغط لديكم 5 ثوانٍ للإجابة، ثم يُمنع فريقكم من الضغط 3 ثوانٍ.</p>
+        </div>`;
+    }
+
+    function bindBuzzerEvents() {
+      const P = BuzzPlayer;
+      const retry = document.getElementById('btn-bz-retry');
+      if (retry) retry.addEventListener('click', () => buzzPlayerConnect());
+      const btn = document.getElementById('btn-bz-press');
+      if (btn) btn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        if (!P.st || buzzPlayerMode().mode !== 'ready') return;
+        P.pending = true;
+        if (navigator.vibrate) navigator.vibrate(60);
+        if (P.conn && P.conn.open) P.conn.send({ t: 'buzz' });
+        render();
+      });
+    }
+
+    // =========================================================================
     // 10e. SHARING: WHATSAPP, NATIVE SHARE, RESULT CARD, DAILY PUZZLE
     // =========================================================================
     const SITE_URL = 'https://tahaddi-alfiraq.com';
@@ -15084,7 +15549,7 @@
           <p class="font-semibold text-white">يضم موقع «وجه لوجه» مجموعة ألعاب جماعية ممتعة لفريقين تعمل مباشرة على الجوال والكمبيوتر:</p>
           <ul class="list-disc list-inside space-y-2 text-xs sm:text-sm">
             <li><strong class="text-cyan-300">🏆 تحدي التصانيف:</strong> يختار كل فريق 4 تصانيف (المجموع 8 تصانيف × 5 صعوبات من 100 إلى 500 نقطة). الفريق المختار يجاوب أولاً ثم تنتقل الإجابة للفريق الثاني.</li>
-            <li><strong class="text-sky-300">⬡ لعبة الخلية:</strong> لوحة سداسية من 25 حرفاً عشوائياً؛ الفريق الأزرق يوصل الأعلى بالأسفل والفريق الذهبي يوصل اليمين باليسار، بالإجابة على أسئلة تبدأ بحرف الخلية. اختاروا المستوى (سهل، متوسط، صعب) أو «أسئلة من عندكم» ليطرح المقدّم أسئلته بنفسه.</li>
+            <li><strong class="text-sky-300">⬡ لعبة الخلية:</strong> لوحة سداسية من 25 حرفاً عشوائياً؛ الفريق الأزرق يوصل الأعلى بالأسفل والفريق الذهبي يوصل اليمين باليسار، بالإجابة على أسئلة تبدأ بحرف الخلية. اختاروا المستوى (سهل، متوسط، صعب) أو «أسئلة من عندكم» ليطرح المقدّم أسئلته بنفسه. ميزة اختيارية «🔔 زر الجرس»: كل فريق يمسح كوده بجوال فيظهر له زر جرس، وأول فريق يضغط له 5 ثوانٍ ليجيب، ثم يُمنع من الضغط 3 ثوانٍ.</li>
             <li><strong class="text-amber-300">🔨 لعبة المزاد:</strong> يختار الفريقان التصنيف بالتناوب ويتزايدان على عدد الإجابات الممكنة خلال 30 ثانية حتى يضغط أحدهما «تحدّي!».</li>
             <li><strong class="text-rose-300">🚫 الكلمة الممنوعة:</strong> يشرح لاعب من الفريق الكلمة المطلوبة خلال 60 ثانية دون نطق أي من الكلمات الست الممنوعة.</li>
             <li><strong class="text-fuchsia-300">😀 أمثال بالإيموجي:</strong> اعرف المثل العربي (شعبي أو فصيح) من الإيموجي المرتبة من اليمين لليسار خلال 45 ثانية (نقطتان، أو نقطة مع التلميح)، وإذا أخطأ الفريق يحق للآخر السرقة.</li>
@@ -15108,7 +15573,7 @@
           <p>نحن نحترم خصوصيتك بالكامل. يعمل موقع <strong>وجه لوجه</strong> داخل متصفحك مباشرة ولا يطلب إنشاء حساب أو تسجيل دخول أو جمع أي بيانات شخصية.</p>
           <ul class="list-disc list-inside space-y-2 text-xs sm:text-sm">
             <li><strong>التخزين المحلي (Local Storage):</strong> نستخدم ذاكرة المتصفح المحلية فقط لحفظ الأسئلة التي لعبتموها مسبقاً (لمنع تكرارها) وإعدادات الصوت والمؤقت.</li>
-            <li><strong>ألعاب الجوال (ارسم وخمّن، واسم نبات حيوان جماد بلاد):</strong> لربط الجوال بالشاشة الرئيسية نستخدم خدمة PeerJS المجانية لتعريف الجهازين ببعضهما، ثم ينتقل الرسم مباشرة بين الجهازين ولا يُحفظ على أي خادم. لا نرسل أي بيانات شخصية.</li>
+            <li><strong>ألعاب الجوال (ارسم وخمّن، واسم نبات حيوان جماد بلاد، وزر الجرس في لعبة الخلية):</strong> لربط الجوال بالشاشة الرئيسية نستخدم خدمة PeerJS المجانية لتعريف الجهازين ببعضهما، ثم ينتقل الرسم مباشرة بين الجهازين ولا يُحفظ على أي خادم. لا نرسل أي بيانات شخصية.</li>
             <li><strong>إحصائيات الزيارات:</strong> نستخدم Cloudflare Web Analytics لمعرفة عدد الزيارات والصفحات الأكثر استخداماً. لا يستخدم ملفات تعريف الارتباط ولا يتتبع الزوار كأفراد.</li>
             <li><strong>إعلانات Google AdSense:</strong> قد يستخدم الموقع خدمات إعلانية من طرف ثالث مثل Google AdSense، والتي قد تستخدم ملفات تعريف الارتباط (Cookies) لعرض إعلانات ملائمة بناءً على زياراتك السابقة. يمكنك إدارة تفضيلات الإعلانات عبر إعدادات إعلانات جوجل.</li>
             <li><strong>الموافقة والتواصل:</strong> باستخدامك للموقع فإنك توافق على سياسة الخصوصية هذه. لأي استفسار يمكنك التواصل مع إدارة الموقع عبر البريد المعتمد في صفحة النطاق.</li>
@@ -15164,8 +15629,10 @@
     // Initial Render (a phone that scanned the drawing QR code opens the drawer view)
     const drawParam = new URLSearchParams(location.search).get('draw');
     const npaParam = new URLSearchParams(location.search).get('npa');
+    const buzzParam = new URLSearchParams(location.search).get('buzz');
     if (drawParam) startDrawerApp(drawParam);
     else if (npaParam) startNpaPlayerApp(npaParam, Number(new URLSearchParams(location.search).get('team')));
+    else if (buzzParam) startBuzzPlayerApp(buzzParam, Number(new URLSearchParams(location.search).get('team')));
     else render();
   </script>
   <!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "a5c64b96739b4bb4bcfc943876428178"}'></script><!-- End Cloudflare Web Analytics -->
