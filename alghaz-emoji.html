@@ -24,6 +24,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet" />
+  <script>(function(){var t;try{t=localStorage.getItem('wjh-theme');}catch(e){}if(t!=='light'&&t!=='dark'){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';}document.documentElement.setAttribute('data-theme',t);})();</script>
   <link rel="stylesheet" href="/pages.css" />
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"Game","name":"أمثال بالإيموجي","description":"لعبة أمثال بالإيموجي مجاناً: 87 مثلاً عربياً شعبياً وفصيحاً مكتوبة بالإيموجي من اليمين لليسار. خمّن المثل خلال 45 ثانية مع فريقك، وتحدَّ أصدقاءك بمثل اليوم.","url":"https://tahaddi-alfiraq.com/alghaz-emoji","inLanguage":"ar","numberOfPlayers":{"@type":"QuantitativeValue","minValue":2},"isAccessibleForFree":true,"publisher":{"@type":"Organization","name":"وجه لوجه","url":"https://tahaddi-alfiraq.com/"}}</script>
 </head>
@@ -31,7 +32,10 @@
   <header class="top">
     <div class="wrap">
       <a class="brand" href="/"><img src="/icon-192.png" alt="" width="44" height="44" style="vertical-align:middle;border-radius:10px;margin-left:10px">وجه لوجه</a>
-      <a class="play-btn" href="/">العب الآن</a>
+      <div class="top-actions">
+        <button type="button" class="theme-btn" title="الوضع الفاتح / الداكن" aria-label="تبديل الوضع الفاتح والداكن" onclick="var h=document.documentElement,n=h.getAttribute('data-theme')==='light'?'dark':'light';h.setAttribute('data-theme',n);try{localStorage.setItem('wjh-theme',n);}catch(e){}"></button>
+        <a class="play-btn" href="/">العب الآن</a>
+      </div>
     </div>
   </header>
   <main>

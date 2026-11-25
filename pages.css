@@ -6,7 +6,24 @@
   --muted: #94a3b8;
   --cyan: #06b6d4;
   --amber: #f59e0b;
+  --heading: #ffffff;
+  --header-bg: rgba(2, 6, 23, 0.7);
+  --play-ink: #020617;
+  --link: #06b6d4;
+  color-scheme: dark;
 }
+html[data-theme="light"] {
+  --bg: #eef2f7;
+  --card: #ffffff;
+  --line: #dde4ee;
+  --text: #1e293b;
+  --muted: #526077;
+  --heading: #0f172a;
+  --header-bg: rgba(255, 255, 255, 0.85);
+  --link: #0e7490;
+  color-scheme: light;
+}
+html[data-theme="light"] .fact b { color: #b45309; }
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
@@ -15,26 +32,32 @@ html, body {
   font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif;
   line-height: 1.9;
 }
-a { color: var(--cyan); }
+a { color: var(--link); }
 .wrap { max-width: 780px; margin: 0 auto; padding: 0 16px; }
 header.top {
   border-bottom: 1px solid var(--line);
-  background: rgba(2, 6, 23, 0.7);
+  background: var(--header-bg);
 }
 header.top .wrap {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; padding-top: 12px; padding-bottom: 12px;
 }
-.brand { font-weight: 900; font-size: 1.1rem; color: #fff; text-decoration: none; }
+.brand { font-weight: 900; font-size: 1.1rem; color: var(--heading); text-decoration: none; }
 .play-btn {
   display: inline-block; padding: 10px 22px; border-radius: 14px;
   background: linear-gradient(to left, var(--cyan), #0ea5e9);
-  color: #020617; font-weight: 900; text-decoration: none;
+  color: var(--play-ink); font-weight: 900; text-decoration: none;
 }
-.play-btn.big { padding: 14px 30px; font-size: 1.1rem; }
+.top-actions { display: flex; align-items: center; gap: 8px; }
+.theme-btn {
+  width: 40px; height: 40px; border-radius: 12px; cursor: pointer;
+  background: var(--card); border: 1px solid var(--line); font-size: 1.05rem; line-height: 1;
+}
+.theme-btn::before { content: "☀️"; }
+html[data-theme="light"] .theme-btn::before { content: "🌙"; }.play-btn.big { padding: 14px 30px; font-size: 1.1rem; }
 main { padding: 28px 0 40px; }
-h1 { font-size: 1.9rem; line-height: 1.4; margin: 0 0 8px; color: #fff; }
-h2 { font-size: 1.3rem; margin: 32px 0 8px; color: #fff; }
+h1 { font-size: 1.9rem; line-height: 1.4; margin: 0 0 8px; color: var(--heading); }
+h2 { font-size: 1.3rem; margin: 32px 0 8px; color: var(--heading); }
 .lead { color: var(--muted); font-size: 1.05rem; margin: 0 0 20px; }
 .facts {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
