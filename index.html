@@ -152,6 +152,19 @@
 
     <!-- Website Footer (AdSense Policy Pages: How to Play, About, Privacy Policy) -->
     <footer class="w-full border-t border-slate-800/80 bg-slate-950/70 px-4 py-4 mt-auto">
+      <!-- Ask visitors to help spread the site -->
+      <div class="max-w-3xl mx-auto mb-4 p-4 rounded-2xl bg-gradient-to-l from-cyan-500/10 to-amber-500/10 border border-slate-700/70 text-center space-y-3">
+        <div class="text-sm sm:text-base font-black text-white">أعجبتكم «وجه لوجه»؟ ساعدونا ننشرها!</div>
+        <div class="flex flex-wrap items-center justify-center gap-2 text-xs font-black">
+          <button type="button" data-site-share="tiktok" class="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-600 text-white transition">🎵 تيك توك</button>
+          <button type="button" data-site-share="instagram" class="px-3 py-2 rounded-xl bg-gradient-to-l from-fuchsia-500 via-pink-500 to-amber-400 hover:brightness-110 text-white transition">📸 إنستغرام</button>
+          <a href="https://www.snapchat.com/scan?attachmentUrl=https%3A%2F%2Ftahaddi-alfiraq.com" target="_blank" rel="noopener" class="px-3 py-2 rounded-xl bg-yellow-300 hover:bg-yellow-200 text-slate-950 transition">👻 سناب شات</a>
+          <a href="https://wa.me/?text=%D8%AC%D8%B1%D9%91%D8%A8%D9%88%D8%A7%20%D8%A3%D9%84%D8%B9%D8%A7%D8%A8%20%C2%AB%D9%88%D8%AC%D9%87%20%D9%84%D9%88%D8%AC%D9%87%C2%BB%20%D8%A7%D9%84%D8%AC%D9%85%D8%A7%D8%B9%D9%8A%D8%A9%20%D9%85%D8%AC%D8%A7%D9%86%D8%A7%D9%8B%20%F0%9F%8E%AE%20https%3A%2F%2Ftahaddi-alfiraq.com" target="_blank" rel="noopener" class="px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition">💬 واتساب</a>
+          <a href="https://twitter.com/intent/tweet?text=%D8%AC%D8%B1%D9%91%D8%A8%D9%88%D8%A7%20%D8%A3%D9%84%D8%B9%D8%A7%D8%A8%20%C2%AB%D9%88%D8%AC%D9%87%20%D9%84%D9%88%D8%AC%D9%87%C2%BB%20%D8%A7%D9%84%D8%AC%D9%85%D8%A7%D8%B9%D9%8A%D8%A9%20%D9%85%D8%AC%D8%A7%D9%86%D8%A7%D9%8B%20%F0%9F%8E%AE&url=https%3A%2F%2Ftahaddi-alfiraq.com" target="_blank" rel="noopener" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-white text-slate-950 transition">𝕏 إكس</a>
+          <a href="https://t.me/share/url?url=https%3A%2F%2Ftahaddi-alfiraq.com&text=%D8%AC%D8%B1%D9%91%D8%A8%D9%88%D8%A7%20%D8%A3%D9%84%D8%B9%D8%A7%D8%A8%20%C2%AB%D9%88%D8%AC%D9%87%20%D9%84%D9%88%D8%AC%D9%87%C2%BB%20%D8%A7%D9%84%D8%AC%D9%85%D8%A7%D8%B9%D9%8A%D8%A9%20%D9%85%D8%AC%D8%A7%D9%86%D8%A7%D9%8B%20%F0%9F%8E%AE" target="_blank" rel="noopener" class="px-3 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 transition">✈️ تيليجرام</a>
+          <button type="button" data-site-share="copy" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 transition">🔗 نسخ الرابط</button>
+        </div>
+      </div>
       <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
         <div class="font-bold text-slate-300">🏆 وجه لوجه — منصة ألعاب المسابقات الجماعية</div>
         <nav class="flex flex-wrap items-center justify-center gap-3 sm:gap-5 font-bold">
@@ -15503,7 +15516,22 @@
       `;
     }
 
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', async (e) => {
+      const siteBtn = e.target.closest('[data-site-share]');
+      if (siteBtn) {
+        SoundFX.click();
+        let copied = false;
+        try { await navigator.clipboard.writeText(SITE_URL); copied = true; } catch (err) {}
+        const apps = { tiktok: 'https://www.tiktok.com/', instagram: 'https://www.instagram.com/' };
+        const app = apps[siteBtn.dataset.siteShare];
+        if (app) {
+          showToast(copied ? 'تم نسخ رابط الموقع ✅ صوّروا مقطعاً وضعوا الرابط في الوصف' : `صوّروا مقطعاً وضعوا الرابط في الوصف: ${SITE_URL}`, 'success');
+          window.open(app, '_blank', 'noopener');
+        } else {
+          showToast(copied ? 'تم نسخ رابط الموقع ✅' : SITE_URL, 'success');
+        }
+        return;
+      }
       const shareBtn = e.target.closest('[data-share-action]');
       if (shareBtn && currentShare) {
         SoundFX.click();
