@@ -12907,16 +12907,18 @@
             </div>
             ${tb.phoneMode ? `
             <p class="text-sm text-slate-300 leading-relaxed max-w-md mx-auto">
-              الشارح من <strong>${escapeHtml(activeTeam.name)}</strong> يمسح الكود بجواله، فتظهر له الكلمة والكلمات الممنوعة <strong>في جواله فقط</strong>. يشرح خلال 60 ثانية وفريقه يخمّن.
+              الشارح من <strong>${escapeHtml(activeTeam.name)}</strong> يمسح كود فريقه بجواله، فتظهر له الكلمة والكلمات الممنوعة <strong>في جواله فقط</strong>. يشرح خلال 60 ثانية وفريقه يخمّن.
             </p>
-            <div class="max-w-xs mx-auto">${plinkSlotBox(TabooLink, 0, `📱 جوال الشارح (${escapeHtml(activeTeam.name)})`, isT0 ? 'cyan' : 'amber', 'جوال الشارح متصل ✅')}</div>
-            ${TabooLink.conns[0] ? '<p class="text-[11px] font-bold text-slate-400">إذا تغيّر الشارح، يمسح الكود من جواله فيحلّ مكان الجوال السابق.</p>' : ''}
+            <div class="grid grid-cols-2 gap-3 max-w-lg mx-auto">
+              ${[0, 1].map(i => `<div class="${i === tb.turnIdx ? '' : 'opacity-60'}">${plinkSlotBox(TabooLink, i, `${i === 0 ? '🔵' : '🟡'} ${escapeHtml(state.teams[i].name)}${i === tb.turnIdx ? ' — دوره' : ''}`, i === 0 ? 'cyan' : 'amber', 'جوال الشارح متصل ✅')}</div>`).join('')}
+            </div>
+            <p class="text-[11px] font-bold text-slate-400">لكل فريق كود خاص: يمسحه شارح الفريق بجواله. إذا تغيّر الشارح، يمسح الكود من جواله فيحلّ مكان الجوال السابق.</p>
             ` : `
             <p class="text-sm text-slate-300 leading-relaxed max-w-md mx-auto">
               مرّر الجوال للاعب الشارح من <strong>${escapeHtml(activeTeam.name)}</strong> وتأكد أن بقية فريقه لا يرون الشاشة. اشرح الكلمة خلال 60 ثانية بدون نطق أي كلمة من الكلمات الست الممنوعة!
             </p>`}
             <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
-              <button id="btn-tb-start" type="button" ${tb.phoneMode && !TabooLink.conns[0] ? 'disabled' : ''}
+              <button id="btn-tb-start" type="button" ${tb.phoneMode && !TabooLink.conns[tb.turnIdx] ? 'disabled' : ''}
                 class="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-l from-cyan-500 to-amber-500 text-slate-950 font-black text-base sm:text-lg shadow-xl active:scale-95 transition disabled:opacity-40">
                 ▶ ابدأ الجولة (60 ثانية)
               </button>
@@ -12953,9 +12955,9 @@
             <div class="p-6 sm:p-8 rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-700/80 text-center space-y-2">
               <div class="text-5xl">🤫</div>
               <div class="text-xl sm:text-2xl font-black text-white">الكلمة في جوال الشارح فقط</div>
-              <div class="text-xs sm:text-sm font-bold text-slate-400">${TabooLink.conns[0] ? `${escapeHtml(activeTeam.name)}: خمّنوا الكلمة من شرح زميلكم!` : '⚠️ انقطع اتصال جوال الشارح — أوقفوا الوقت وامسحوا الكود مرة أخرى.'}</div>
+              <div class="text-xs sm:text-sm font-bold text-slate-400">${TabooLink.conns[tb.turnIdx] ? `${escapeHtml(activeTeam.name)}: خمّنوا الكلمة من شرح زميلكم!` : '⚠️ انقطع اتصال جوال الشارح — أوقفوا الوقت وامسحوا الكود مرة أخرى.'}</div>
             </div>
-            ${!TabooLink.conns[0] ? `<div class="max-w-xs mx-auto">${plinkSlotBox(TabooLink, 0, '📱 جوال الشارح', isT0 ? 'cyan' : 'amber')}</div>` : ''}
+            ${!TabooLink.conns[tb.turnIdx] ? `<div class="max-w-xs mx-auto">${plinkSlotBox(TabooLink, tb.turnIdx, `📱 جوال شارح ${escapeHtml(activeTeam.name)}`, isT0 ? 'cyan' : 'amber')}</div>` : ''}
             ${tb.lastCard ? `
             <div class="p-3 rounded-2xl bg-slate-900/70 border border-slate-800 text-center">
               <div class="text-[11px] font-bold text-slate-400 mb-1">البطاقة السابقة ${tb.lastCard.result === 'correct' ? '✅' : tb.lastCard.result === 'foul' ? '🚫' : '⏭️'}</div>
@@ -15890,19 +15892,23 @@
     }
 
     // ---- Taboo: the explainer's phone shows the card ----
-    const TabooLink = PHONE_LINKS.taboo = createPhoneLink('taboo', 'taboo', 1, {
-      stateFor() {
+    // One QR per team: slot 0 = first team's explainer, slot 1 = second team's explainer.
+    // Only the phone of the team whose turn it is sees the card and can act.
+    const TabooLink = PHONE_LINKS.taboo = createPhoneLink('taboo', 'taboo', 2, {
+      stateFor(slot) {
         const tb = state.taboo;
-        const c = tb.phase === 'play' ? tb.currentCard : null;
+        const myTurn = slot === tb.turnIdx;
+        const c = tb.phase === 'play' && myTurn ? tb.currentCard : null;
         return {
-          t: 'state', phase: tb.phase, round: tb.round, maxRounds: tb.maxRounds,
-          team: state.teams[tb.turnIdx].name, color: tb.turnIdx === 0 ? 'cyan' : 'amber',
+          t: 'state', phase: tb.phase, round: tb.round, maxRounds: tb.maxRounds, myTurn,
+          team: state.teams[slot].name, turnTeam: state.teams[tb.turnIdx].name, color: slot === 0 ? 'cyan' : 'amber',
           card: c ? { word: c.word, cat: c.cat, forbidden: c.forbidden } : null,
           timeLeft: tb.timeLeft, paused: tb.paused, correct: tb.roundCorrect
         };
       },
       onData(slot, msg) {
         const tb = state.taboo;
+        if (slot !== tb.turnIdx) return;
         if (msg.t === 'start' && tb.phase === 'ready') startTabooRound();
         else if (msg.t === 'correct' && tb.phase === 'play' && !tb.paused) tabooCorrect();
         else if (msg.t === 'skip' && tb.phase === 'play' && !tb.paused) tabooSkip();
@@ -16033,6 +16039,7 @@
         },
         // Only the timer changed: update it in place instead of re-rendering
         keepDom(prev, st) {
+          if (prev && !st.myTurn && !prev.myTurn && prev.phase === st.phase && prev.turnTeam === st.turnTeam) return true;
           return prev && prev.phase === 'play' && st.phase === 'play' && prev.paused === st.paused &&
             prev.card && st.card && prev.card.word === st.card.word && prev.correct === st.correct && !!document.getElementById('ph-tb-time');
         },
@@ -16042,10 +16049,19 @@
         },
         render(st) {
           const c = st.color;
+          if (st.phase === 'winner') {
+            return `<div class="text-5xl">🏆</div><p class="text-base font-bold text-slate-200">انتهت المباراة! شاهدوا النتيجة على الشاشة الرئيسية.</p>`;
+          }
+          if (!st.myTurn) {
+            return `<div class="text-sm font-black text-${c}-300">${c === 'cyan' ? '🔵' : '🟡'} ${escapeHtml(st.team)}</div>
+              <div class="text-5xl">👀</div>
+              <h2 class="text-xl font-black text-white">الدور الآن لـ ${escapeHtml(st.turnTeam)}</h2>
+              <p class="text-sm font-bold text-slate-300">انتظروا دوركم. ستظهر الكلمة هنا عندما يأتي دور فريقكم.</p>`;
+          }
           if (st.phase === 'ready') {
             return `<div class="text-5xl">🗣️</div>
               <div class="text-sm font-bold text-slate-400">الجولة ${st.round} من ${st.maxRounds}</div>
-              <h2 class="text-xl font-black text-white">أنت الشارح لفريق <span class="text-${c}-300">${escapeHtml(st.team)}</span></h2>
+              <h2 class="text-xl font-black text-white">دورك تشرح لـ <span class="text-${c}-300">${escapeHtml(st.team)}</span></h2>
               <p class="text-sm font-bold text-slate-300">لا تُرِ الكلمة لأحد. عندما يكون فريقك جاهزاً اضغط «ابدأ».</p>
               <button id="btn-ph-tb-start" type="button" class="w-full py-5 rounded-2xl bg-${c}-500 text-slate-950 font-black text-xl active:scale-95 transition">▶ ابدأ الجولة (60 ثانية)</button>`;
           }
@@ -16071,7 +16087,7 @@
           }
           if (st.phase === 'roundEnd' || st.phase === 'winner') {
             return `<div class="text-5xl">⏱️</div><h2 class="text-xl font-black text-white">انتهت الجولة</h2>
-              <p class="text-sm font-bold text-slate-300">أجبتم ${st.correct} إجابات صحيحة. الشارح القادم يمسح الكود من جواله.</p>`;
+              <p class="text-sm font-bold text-slate-300">أجبتم ${st.correct} إجابات صحيحة. الدور الآن للفريق الآخر.</p>`;
           }
           return `<p class="text-sm font-bold text-slate-300">⏳ …</p>`;
         },
@@ -16411,7 +16427,7 @@
             <li><strong class="text-cyan-300">🏆 تحدي التصانيف:</strong> يختار كل فريق 4 تصانيف (المجموع 8 تصانيف × 5 صعوبات من 100 إلى 500 نقطة). الفريق المختار يجاوب أولاً ثم تنتقل الإجابة للفريق الثاني.</li>
             <li><strong class="text-sky-300">⬡ لعبة الخلية:</strong> لوحة سداسية من 25 حرفاً عشوائياً؛ الفريق الأزرق يوصل الأعلى بالأسفل والفريق الذهبي يوصل اليمين باليسار، بالإجابة على أسئلة تبدأ بحرف الخلية. اختاروا المستوى (سهل، متوسط، صعب) أو «أسئلة من عندكم» ليطرح المقدّم أسئلته بنفسه. ميزة اختيارية «🔔 زر الجرس»: كل فريق يمسح كوده بجوال فيظهر له زر جرس، وأول فريق يضغط له 5 ثوانٍ ليجيب، ثم يُمنع من الضغط 3 ثوانٍ.</li>
             <li><strong class="text-amber-300">🔨 لعبة المزاد:</strong> يختار الفريقان التصنيف بالتناوب ويتزايدان على عدد الإجابات الممكنة خلال 30 ثانية حتى يضغط أحدهما «تحدّي!».</li>
-            <li><strong class="text-rose-300">🚫 الكلمة الممنوعة:</strong> يمسح الشارح من الفريق الكود بجواله فتظهر له الكلمة في جواله فقط، ويشرحها خلال 60 ثانية دون نطق أي من الكلمات الست الممنوعة. (يمكن أيضاً عرض الكلمة على الشاشة إذا لم يتوفر جوال.)</li>
+            <li><strong class="text-rose-300">🚫 الكلمة الممنوعة:</strong> لكل فريق كود خاص يمسحه شارح الفريق بجواله، فتظهر له الكلمة في جواله فقط عندما يأتي دور فريقه، ويشرحها خلال 60 ثانية دون نطق أي من الكلمات الست الممنوعة. (يمكن أيضاً عرض الكلمة على الشاشة إذا لم يتوفر جوال.)</li>
             <li><strong class="text-fuchsia-300">😀 أمثال بالإيموجي:</strong> اعرف المثل العربي (شعبي أو فصيح) من الإيموجي المرتبة من اليمين لليسار خلال 45 ثانية (نقطتان، أو نقطة مع التلميح)، وإذا أخطأ الفريق يحق للآخر السرقة.</li>
             <li><strong class="text-emerald-300">🎯 خمّن الرقم:</strong> كل فريق يمسح الكود الخاص به ويكتب تقديره في جواله فلا يراه الفريق الآخر (أو على الشاشة نفسها إذا لم تتوفر جوالات). الأقرب للإجابة يكسب نقطة، والإجابة الدقيقة تماماً 3 نقاط.</li>
             <li><strong class="text-lime-300">🌿 اسم نبات حيوان جماد بلاد:</strong> كل فريق يمسح كوده بجوال، وعندما يضغط الفريقان «جاهز» يظهر الحرف. يكتب كل فريق اسماً ونباتاً وحيواناً وجماداً وبلداً تبدأ بالحرف، وأول من يضغط «انتهيت» يوقف الكتابة عند الفريقين. تظهر الإجابات على الشاشة، فإن كانت إجابات الفريق الأسرع صحيحة فالنقطة له، وإلا تنتقل للفريق الآخر.</li>
