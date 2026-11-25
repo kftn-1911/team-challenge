@@ -11556,9 +11556,6 @@
                 : `دور <span class="${isOrangeTurn ? 'text-cyan-400' : 'text-amber-400'} font-black">${escapeHtml(isOrangeTurn ? h.orangeName : h.greenName)}</span> لاختيار حرف من الخلية`}
             </div>
             <div class="flex flex-wrap items-center gap-1.5 shrink-0">
-              ${!BuzzNet.on && !h.winner ? `<button id="btn-hex-buzz" type="button" title="زر جرس لكل فريق في الجوال" class="text-[11px] font-black px-2.5 py-1.5 rounded-lg bg-violet-500/20 hover:bg-violet-500/30 border border-violet-400/60 text-violet-100 transition">
-                🔔 زر الجرس
-              </button>` : ''}
               <button id="btn-hex-swap" type="button" class="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition">
                 ⇄ تبديل الدور
               </button>
@@ -15102,7 +15099,15 @@
 
     // Panel on the board screen: one QR code per team, or "connected".
     function renderBuzzPanel() {
-      if (!BuzzNet.on) return '';
+      if (!BuzzNet.on) return `
+        <button id="btn-hex-buzz" type="button"
+          class="mb-3 w-full py-3 sm:py-3.5 px-4 rounded-2xl bg-gradient-to-l from-cyan-500 to-amber-500 hover:brightness-110 text-slate-950 shadow-lg shadow-cyan-500/20 active:scale-[0.98] transition flex items-center justify-center gap-2.5">
+          <span class="text-3xl sm:text-4xl">🔔</span>
+          <span class="flex flex-col items-start">
+            <span class="text-lg sm:text-2xl font-black">زر الجرس بالجوال</span>
+            <span class="text-[11px] sm:text-xs font-bold opacity-90">كل فريق يمسح كوده، وأول من يضغط يجيب</span>
+          </span>
+        </button>`;
       const both = !!(BuzzNet.conns[0] && BuzzNet.conns[1]);
       const box = t => {
         const c = t === 0 ? 'cyan' : 'amber';
