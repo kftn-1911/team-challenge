@@ -10160,6 +10160,29 @@
           return new Set();
         })()
       },
+      stranger: {
+        phase: 'setup', // 'setup' | 'qr' | 'discuss' | 'reveal'
+        playerCount: 5,
+        strangerCount: 1,
+        selectedCatId: 'random',
+        activeCatIdx: 0,
+        activeWordIdx: 0,
+        strangerNums: [],
+        qrCards: [], // [{ num, token, scanned }]
+        qrReady: false,
+        qrError: '',
+        timeLeft: 180,
+        paused: false,
+        usedKeys: (() => {
+          try {
+            const raw = localStorage.getItem('musabaqat_stranger_used_v1');
+            if (raw) return new Set(JSON.parse(raw));
+          } catch (e) {}
+          return new Set();
+        })(),
+        phoneCard: null, // { num, isStranger, cat, word }
+        phoneRevealed: false
+      },
       taboo: {
         phase: 'ready', // 'ready' | 'play' | 'roundEnd' | 'winner'
         round: 1,
@@ -10406,6 +10429,12 @@
       } else if (state.screen === 'buzzer') {
         main.innerHTML = renderBuzzerScreen();
         bindBuzzerEvents();
+      } else if (state.screen === 'stranger') {
+        main.innerHTML = renderStrangerScreen();
+        bindStrangerEvents();
+      } else if (state.screen === 'strangerPhone') {
+        main.innerHTML = renderStrangerPhoneScreen();
+        bindStrangerPhoneEvents();
       } else if (state.screen === 'phone') {
         main.innerHTML = renderPhoneScreen();
         bindPhoneEvents();
@@ -10417,7 +10446,7 @@
       document.getElementById('sound-icon').textContent = state.soundEnabled ? '🔊' : '🔇';
       document.getElementById('sound-label').textContent = state.soundEnabled ? 'الصوت' : 'صامت';
       const inGameBox = document.getElementById('settings-ingame-actions');
-      if (state.screen === 'board' || state.screen === 'cell' || state.screen === 'auction' || state.screen === 'taboo' || state.screen === 'clues' || state.screen === 'emoji' || state.screen === 'number' || state.screen === 'draw' || state.screen === 'npa') {
+      if (state.screen === 'board' || state.screen === 'cell' || state.screen === 'auction' || state.screen === 'taboo' || state.screen === 'clues' || state.screen === 'emoji' || state.screen === 'number' || state.screen === 'draw' || state.screen === 'npa' || state.screen === 'stranger') {
         inGameBox.classList.remove('hidden');
       } else {
         inGameBox.classList.add('hidden');
@@ -10435,7 +10464,8 @@
       { id: 'btn-go-emoji', svg: 'g-emoji.svg', title: 'أمثال بالإيموجي', sub: '87 مثلاً شعبياً وفصيحاً • 45 ثانية', accent: '#ec4899' },
       { id: 'btn-go-number', svg: 'g-number.svg', title: 'خمّن الرقم', sub: '60 سؤالاً • الأقرب يفوز', accent: '#10b981' },
       { id: 'btn-go-draw', svg: 'g-rasm.svg', title: 'ارسم وخمّن', sub: 'ارسم بجوالك ويظهر رسمك على الشاشة', accent: '#0ea5e9', tag: '📱 بالجوال' },
-      { id: 'btn-go-npa', svg: 'g-npa.svg', title: 'اسم نبات حيوان جماد بلاد', sub: 'كل فريق يكتب في جواله • الأسرع يوقف الكتابة', accent: '#84cc16', tag: '📱 بالجوال' }
+      { id: 'btn-go-npa', svg: 'g-npa.svg', title: 'اسم نبات حيوان جماد بلاد', sub: 'كل فريق يكتب في جواله • الأسرع يوقف الكتابة', accent: '#84cc16', tag: '📱 بالجوال' },
+      { id: 'btn-go-stranger', svg: 'g-gharib.svg', title: 'من الغريب؟', sub: 'كود QR لكل لاعب • اكشف الغريب بينكم', accent: '#a855f7', tag: '📱 بالجوال' }
     ];
     function renderSetupScreen() {
       const totalQ = getTotalQuestionsCount();
@@ -10624,6 +10654,18 @@
           state.teams[1].name = t2.value.trim() || 'الفريق الثاني';
           state.screen = 'draw';
           initDrawGame();
+          render();
+        });
+      }
+
+      const strangerBtn = document.getElementById('btn-go-stranger');
+      if (strangerBtn) {
+        strangerBtn.addEventListener('click', () => {
+          SoundFX.select();
+          state.teams[0].name = t1.value.trim() || 'الفريق الأول';
+          state.teams[1].name = t2.value.trim() || 'الفريق الثاني';
+          initStrangerGame();
+          state.screen = 'stranger';
           render();
         });
       }
@@ -16555,13 +16597,651 @@
     // Initialize Ad Banner & Render
     AdManager.renderBanner();
 
+
+    // =========================================================================
+    // WHO IS THE STRANGER («من الغريب؟») ENGINE — QR PER PLAYER
+    // =========================================================================
+    const STORAGE_KEY_STRANGER_USED = 'musabaqat_stranger_used_v1';
+    const STRANGER_CATEGORIES = [
+      { id: 'food', name: 'أكلات ومشروبات', icon: '🍽️', words: ['كبسة', 'شاورما', 'بيتزا', 'سوشي', 'منسف', 'كشري', 'كنافة', 'لقيمات', 'برجر', 'قهوة عربية', 'ماتشا', 'شاي كرك', 'تمر', 'فلافل', 'برياني', 'ملوخية', 'باستا', 'آيس كريم'] },
+      { id: 'places', name: 'أماكن ومعالم', icon: '📍', words: ['المطار', 'المستشفى', 'المدرسة', 'السينما', 'المول', 'المسجد', 'الملعب', 'المطبخ', 'الشاطئ', 'المكتبة', 'الصحراء', 'القطار', 'الفندق', 'النادي الرياضي', 'مدينة الملاهي', 'المتحف', 'المقهى', 'محل الحلاقة'] },
+      { id: 'animals', name: 'حيوانات', icon: '🦁', words: ['الأسد', 'الجمل', 'البطريق', 'الدولفين', 'الصقر', 'الفيل', 'الزرافة', 'الأخطبوط', 'الباندا', 'الذئب', 'الكنغر', 'البومة', 'التمساح', 'القرد', 'الفهد', 'الضب', 'السلحفاة', 'الحوت'] },
+      { id: 'countries', name: 'دول ومدن', icon: '🌍', words: ['السعودية', 'اليابان', 'مصر', 'فرنسا', 'البرازيل', 'تركيا', 'الإمارات', 'إيطاليا', 'أمريكا', 'المغرب', 'لندن', 'دبي', 'مكة المكرمة', 'الرياض', 'جدة', 'نيويورك', 'إسطنبول', 'المالديف'] },
+      { id: 'sports', name: 'كرة قدم ورياضة', icon: '⚽', words: ['ميسي', 'رونالدو', 'محمد صلاح', 'الهلال', 'النصر', 'ريال مدريد', 'برشلونة', 'كأس العالم', 'ركلة جزاء', 'حارس مرمى', 'التنس', 'كرة السلة', 'السباحة', 'فورمولا 1', 'الملاكمة', 'الشطرنج'] },
+      { id: 'jobs', name: 'مهن ووظائف', icon: '💼', words: ['طبيب', 'طيار', 'مهندس', 'معلم', 'طباخ', 'رائد فضاء', 'محامي', 'مصور', 'إطفائي', 'مبرمج', 'حلاق', 'شرطي', 'صحفي', 'سائق تاكسي', 'نجار', 'حكم كرة قدم'] },
+      { id: 'vehicles', name: 'سيارات ومواصلات', icon: '🚗', words: ['تويوتا', 'تسلا', 'فيراري', 'مرسيدس', 'طائرة', 'سفينة', 'قطار', 'دراجة نارية', 'سيارة إسعاف', 'غواصة', 'هليكوبتر', 'منطاد', 'مترو', 'شاحنة', 'تاكسي', 'سكوتر'] },
+      { id: 'gaming', name: 'ألعاب فيديو وأنمي', icon: '🎮', words: ['ماينكرافت', 'فورتنايت', 'GTA', 'فيفا', 'ببجي', 'ماريو', 'سونيك', 'روبلوكس', 'ون بيس', 'ناروتو', 'هجوم العمالقة', 'دراغون بول', 'المحقق كونان', 'سبونج بوب', 'بوكيمون', 'كابتن ماجد'] },
+      { id: 'objects', name: 'أشياء يومية وتقنية', icon: '📱', words: ['الجوال', 'الساعة الذكية', 'المكيف', 'الثلاجة', 'المصعد', 'النظارة', 'المظلة', 'الكاميرا', 'السماعة', 'الشاحن', 'المفتاح', 'المحفظة', 'فرشاة الأسنان', 'الميكروويف', 'الكمبيوتر', 'التلفاز'] },
+      { id: 'movies', name: 'أفلام وشخصيات', icon: '🎬', words: ['باتمان', 'سبايدرمان', 'هاري بوتر', 'الأسد الملك', 'توي ستوري', 'فروزن', 'توم وجيري', 'سندريلا', 'علاء الدين', 'شريك', 'تايتانيك', 'أفاتار', 'جون ويك', 'آيرون مان', 'الجوكر', 'جاك سبارو'] },
+      { id: 'brands', name: 'ماركات وشركات', icon: '🛍️', words: ['أبل', 'سامسونج', 'نايكي', 'أديداس', 'البيك', 'ماكدونالدز', 'ستاربكس', 'أمازون', 'نتفليكس', 'يوتيوب', 'إيكيا', 'أرامكو', 'سوني', 'جوجل', 'رولكس', 'جرير'] },
+      { id: 'nature', name: 'طبيعة وفصول', icon: '🌿', words: ['الشمس', 'القمر', 'البحر', 'البركان', 'المطر', 'الثلج', 'قوس قزح', 'الصحراء', 'الغابة', 'الشلال', 'النجمة', 'الوردة', 'النخلة', 'الزلزال', 'السحابة', 'الجزيرة'] }
+    ];
+
+    const STRANGER_XOR_KEY = [73, 41, 117, 29, 91, 63, 107, 19];
+
+    function encodeStrangerToken(num, isStranger, catIdx, wordIdx) {
+      const salt = Math.floor(Math.random() * 90) + 10;
+      const raw = `${num},${isStranger ? 1 : 0},${catIdx},${wordIdx},${salt}`;
+      let xored = '';
+      for (let i = 0; i < raw.length; i++) {
+        xored += String.fromCharCode(raw.charCodeAt(i) ^ STRANGER_XOR_KEY[i % STRANGER_XOR_KEY.length]);
+      }
+      return btoa(xored).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    function decodeStrangerToken(token) {
+      try {
+        let b64 = String(token || '').replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4) b64 += '=';
+        const xored = atob(b64);
+        let raw = '';
+        for (let i = 0; i < xored.length; i++) {
+          raw += String.fromCharCode(xored.charCodeAt(i) ^ STRANGER_XOR_KEY[i % STRANGER_XOR_KEY.length]);
+        }
+        const parts = raw.split(',').map(Number);
+        if (parts.length < 4 || parts.some(n => Number.isNaN(n))) return null;
+        const [num, isStr, catIdx, wordIdx] = parts;
+        const cat = STRANGER_CATEGORIES[catIdx];
+        if (!cat || !cat.words[wordIdx]) return null;
+        return { num, isStranger: isStr === 1, cat, word: cat.words[wordIdx] };
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function saveStrangerUsed() {
+      try {
+        localStorage.setItem(STORAGE_KEY_STRANGER_USED, JSON.stringify([...state.stranger.usedKeys]));
+      } catch (e) {}
+    }
+
+    function pickStrangerWord(selectedCatId) {
+      let catIdx;
+      if (selectedCatId === 'random') {
+        catIdx = Math.floor(Math.random() * STRANGER_CATEGORIES.length);
+      } else {
+        catIdx = STRANGER_CATEGORIES.findIndex(c => c.id === selectedCatId);
+        if (catIdx < 0) catIdx = 0;
+      }
+      const cat = STRANGER_CATEGORIES[catIdx];
+      let pool = cat.words.map((_, wi) => wi).filter(wi => !state.stranger.usedKeys.has(`${cat.id}:${wi}`));
+      if (pool.length === 0) {
+        cat.words.forEach((_, wi) => state.stranger.usedKeys.delete(`${cat.id}:${wi}`));
+        saveStrangerUsed();
+        pool = cat.words.map((_, wi) => wi);
+      }
+      const wordIdx = pool[Math.floor(Math.random() * pool.length)];
+      state.stranger.usedKeys.add(`${cat.id}:${wordIdx}`);
+      saveStrangerUsed();
+      return { catIdx, wordIdx };
+    }
+
+    function initStrangerGame() {
+      clearTimer();
+      const s = state.stranger;
+      s.phase = 'setup';
+      if (s.playerCount < 3 || s.playerCount > 12) s.playerCount = 5;
+      if (s.playerCount < 6) s.strangerCount = 1;
+      s.qrCards = [];
+      s.strangerNums = [];
+      s.qrError = '';
+      s.timeLeft = 180;
+      s.paused = false;
+    }
+
+    async function startStrangerRound() {
+      clearTimer();
+      const s = state.stranger;
+      const count = Math.max(3, Math.min(12, s.playerCount));
+      const strCount = (count >= 6 && s.strangerCount === 2) ? 2 : 1;
+      s.playerCount = count;
+      s.strangerCount = strCount;
+
+      const { catIdx, wordIdx } = pickStrangerWord(s.selectedCatId);
+      s.activeCatIdx = catIdx;
+      s.activeWordIdx = wordIdx;
+
+      // Shuffle player numbers 1..count to pick stranger(s)
+      const nums = Array.from({ length: count }, (_, i) => i + 1);
+      for (let i = nums.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [nums[i], nums[j]] = [nums[j], nums[i]];
+      }
+      const chosenStrangers = nums.slice(0, strCount).sort((a, b) => a - b);
+      const strangerSet = new Set(chosenStrangers);
+      s.strangerNums = chosenStrangers;
+
+      s.qrCards = Array.from({ length: count }, (_, i) => {
+        const num = i + 1;
+        return {
+          num,
+          token: encodeStrangerToken(num, strangerSet.has(num), catIdx, wordIdx),
+          scanned: false
+        };
+      });
+
+      s.phase = 'qr';
+      s.qrError = '';
+      s.timeLeft = 180;
+      s.paused = false;
+      SoundFX.openQ();
+      render();
+
+      if (typeof qrcode !== 'function') {
+        try {
+          await loadScriptOnce(DRAW_LIBS.qr);
+          s.qrReady = true;
+          if (state.screen === 'stranger' && s.phase === 'qr') paintStrangerQrs();
+        } catch (err) {
+          s.qrError = 'تعذر تحميل مولّد أكواد QR — تحقق من الاتصال بالإنترنت وأعد المحاولة.';
+          if (state.screen === 'stranger') render();
+        }
+      } else {
+        s.qrReady = true;
+        paintStrangerQrs();
+      }
+    }
+
+    function strangerCardUrl(token) {
+      const base = location.origin && location.origin !== 'null'
+        ? `${location.origin}${location.pathname}`
+        : `${SITE_URL}/`;
+      return `${base}?gharib=${encodeURIComponent(token)}`;
+    }
+
+    function paintStrangerQrs() {
+      const s = state.stranger;
+      if (typeof qrcode !== 'function') return;
+      s.qrCards.forEach(card => {
+        const el = document.getElementById(`str-qr-${card.num}`);
+        if (!el) return;
+        const qr = qrcode(0, 'M');
+        qr.addData(strangerCardUrl(card.token));
+        qr.make();
+        el.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 1, scalable: true });
+        const svg = el.querySelector('svg');
+        if (svg) { svg.setAttribute('width', '100%'); svg.setAttribute('height', '100%'); }
+      });
+    }
+
+    function formatMinSec(sec) {
+      const m = Math.floor(sec / 60);
+      const r = sec % 60;
+      return `${m}:${r < 10 ? '0' : ''}${r}`;
+    }
+
+    function startStrangerDiscuss() {
+      clearTimer();
+      const s = state.stranger;
+      s.phase = 'discuss';
+      s.timeLeft = 180;
+      s.paused = false;
+      SoundFX.select();
+      render();
+
+      state.timerInterval = setInterval(() => {
+        if (state.screen !== 'stranger' || s.phase !== 'discuss' || s.paused) return;
+        if (s.timeLeft > 0) {
+          s.timeLeft--;
+          const el = document.getElementById('str-timer-num');
+          if (el) {
+            el.textContent = s.timeLeft === 0 ? 'انتهى الوقت!' : formatMinSec(s.timeLeft);
+            el.className = `text-4xl sm:text-5xl font-black tabular-nums ${s.timeLeft <= 15 ? 'text-rose-400' : 'text-white'}`;
+          }
+          if (s.timeLeft > 0 && s.timeLeft <= 5) SoundFX.tick();
+          else if (s.timeLeft === 0) SoundFX.timeUp();
+        }
+      }, 1000);
+    }
+
+    function renderStrangerScreen() {
+      const s = state.stranger;
+      let bodyHtml = '';
+
+      if (s.phase === 'setup') {
+        const countBtns = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => {
+          const active = s.playerCount === n;
+          return `<button type="button" data-str-count="${n}"
+            class="py-3 rounded-xl font-black text-base sm:text-lg border-2 transition active:scale-95 ${active ? 'bg-purple-500 text-white border-purple-300 shadow-lg shadow-purple-500/25' : 'bg-slate-900/80 hover:bg-slate-800 text-slate-200 border-slate-700'}">
+            ${n}
+          </button>`;
+        }).join('');
+
+        const catBtns = [
+          { id: 'random', name: 'عشوائي (كل التصانيف)', icon: '🎲' },
+          ...STRANGER_CATEGORIES
+        ].map(cat => {
+          const active = s.selectedCatId === cat.id;
+          return `<button type="button" data-str-cat="${cat.id}"
+            class="p-3 rounded-2xl border-2 text-right transition active:scale-95 flex items-center gap-2 ${active ? 'bg-purple-500/20 border-purple-400 text-white shadow-md shadow-purple-500/15' : 'bg-slate-900/70 hover:bg-slate-800 border-slate-700/80 text-slate-200'}">
+            <span class="text-xl">${cat.icon}</span>
+            <span class="text-xs sm:text-sm font-extrabold truncate">${cat.name}</span>
+          </button>`;
+        }).join('');
+
+        bodyHtml = `
+          <div class="glass-card rounded-3xl p-5 sm:p-7 border border-purple-500/35 shadow-2xl space-y-6">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div class="text-xs font-bold text-purple-300">🕵️ لعبة جماعية عبر الجوال</div>
+                <h2 class="text-2xl sm:text-3xl font-black text-white">من الغريب؟</h2>
+              </div>
+              <button id="btn-str-home" type="button" class="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-300 transition">🏠 الرئيسية</button>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-slate-900/70 border border-slate-800 text-xs sm:text-sm text-slate-300 leading-relaxed">
+              اختر عدد اللاعبين وسننشئ <strong class="text-purple-300">كود QR خاص لكل لاعب</strong>. كل لاعب يصوّر كوده بجواله ليعرف سراً إن كان <strong class="text-emerald-300">داخل السالفة</strong> (ويرى الكلمة السرية) أم هو <strong class="text-rose-300">الغريب</strong>!
+            </div>
+
+            <!-- Player Count -->
+            <div class="space-y-2.5">
+              <div class="flex items-center justify-between">
+                <label class="text-sm sm:text-base font-black text-white">1. كم عدد اللاعبين؟</label>
+                <span class="text-xs font-bold px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300">${s.playerCount} لاعبين</span>
+              </div>
+              <div class="grid grid-cols-5 sm:grid-cols-10 gap-2">${countBtns}</div>
+            </div>
+
+            <!-- Stranger Count -->
+            <div class="space-y-2.5">
+              <label class="text-sm sm:text-base font-black text-white block">2. عدد الغرباء</label>
+              <div class="grid grid-cols-2 gap-2.5 max-w-md">
+                <button type="button" data-str-impostors="1"
+                  class="py-3 px-4 rounded-xl font-black text-sm border-2 transition ${s.strangerCount === 1 ? 'bg-purple-500 text-white border-purple-300' : 'bg-slate-900/80 text-slate-300 border-slate-700'}">
+                  🕵️ غريب واحد
+                </button>
+                <button type="button" data-str-impostors="2" ${s.playerCount < 6 ? 'disabled' : ''}
+                  class="py-3 px-4 rounded-xl font-black text-sm border-2 transition disabled:opacity-40 disabled:cursor-not-allowed ${s.strangerCount === 2 && s.playerCount >= 6 ? 'bg-purple-500 text-white border-purple-300' : 'bg-slate-900/80 text-slate-300 border-slate-700'}">
+                  🕵️‍♂️ غريبان ${s.playerCount < 6 ? '(6+ لاعبين)' : ''}
+                </button>
+              </div>
+            </div>
+
+            <!-- Category -->
+            <div class="space-y-2.5">
+              <label class="text-sm sm:text-base font-black text-white block">3. اختر التصنيف</label>
+              <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">${catBtns}</div>
+            </div>
+
+            <button id="btn-str-start" type="button"
+              class="w-full py-4 rounded-2xl bg-gradient-to-l from-purple-500 to-fuchsia-500 hover:from-purple-400 hover:to-fuchsia-400 text-white font-black text-base sm:text-lg shadow-xl shadow-purple-500/20 active:scale-95 transition">
+              📱 إنشاء ${s.playerCount} أكواد QR وبدء الجولة
+            </button>
+          </div>
+        `;
+      } else if (s.phase === 'qr') {
+        const cat = STRANGER_CATEGORIES[s.activeCatIdx];
+        const scannedCount = s.qrCards.filter(c => c.scanned).length;
+        const cardsHtml = s.qrCards.map(card => `
+          <div class="glass-card rounded-2xl p-3.5 border-2 transition flex flex-col items-center text-center gap-2.5 ${card.scanned ? 'border-emerald-500/60 bg-emerald-500/10' : 'border-slate-700/80 hover:border-purple-400/70'}">
+            <div class="w-full flex items-center justify-between gap-1">
+              <span class="text-sm font-black text-white">لاعب ${card.num}</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-lg ${card.scanned ? 'bg-emerald-500/25 text-emerald-300' : 'bg-purple-500/20 text-purple-300'}">${card.scanned ? '✅ تم المسح' : 'بانتظار المسح'}</span>
+            </div>
+            <div class="relative w-36 h-36 sm:w-40 sm:h-40 rounded-2xl overflow-hidden bg-white p-2 shadow-inner flex items-center justify-center">
+              <div id="str-qr-${card.num}" class="w-full h-full flex items-center justify-center transition ${card.scanned ? 'opacity-15 blur-sm' : ''}">
+                <span class="text-xs font-bold text-slate-500">جاري التوليد...</span>
+              </div>
+              ${card.scanned ? `
+                <div class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/60 text-emerald-300 font-black text-sm gap-1">
+                  <span class="text-2xl">✅</span>
+                  <span>تم المسح</span>
+                </div>
+              ` : ''}
+            </div>
+            <button type="button" data-str-toggle-scan="${card.num}"
+              class="w-full py-2 px-3 rounded-xl text-xs font-bold border transition active:scale-95 ${card.scanned ? 'bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-300' : 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-500/50 text-emerald-300'}">
+              ${card.scanned ? '↩️ إظهار الكود مجدداً' : '✓ علّمه كممسوح'}
+            </button>
+          </div>
+        `).join('');
+
+        bodyHtml = `
+          <div class="space-y-4">
+            <div class="glass-card rounded-2xl p-4 border-2 border-purple-400/60 bg-purple-500/10 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div class="text-xs font-bold text-purple-300">🕵️ من الغريب؟ — مسح الأكواد (${scannedCount}/${s.playerCount})</div>
+                <div class="text-base sm:text-lg font-black text-white">التصنيف: ${cat.icon} ${cat.name} • ${s.strangerCount === 2 ? 'غريبان' : 'غريب واحد'}</div>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <button id="btn-str-reroll" type="button" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-amber-300 transition">🔄 أكواد جديدة</button>
+                <button id="btn-str-back-setup" type="button" class="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-300 transition">⚙️ الإعدادات</button>
+              </div>
+            </div>
+
+            ${s.qrError ? `<div class="p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/50 text-rose-200 text-sm font-bold text-center">${escapeHtml(s.qrError)}</div>` : ''}
+
+            <p class="text-xs sm:text-sm text-slate-300 font-semibold text-center">
+              كل لاعب يصوّر كود QR واحد فقط بكاميرا جواله، ثم اضغط <strong class="text-emerald-300">«✓ علّمه كممسوح»</strong> حتى لا يصوّره لاعب آخر بالخطأ.
+            </p>
+
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">${cardsHtml}</div>
+
+            <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <button id="btn-str-discuss" type="button"
+                class="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-l from-purple-500 to-cyan-500 text-slate-950 font-black text-base sm:text-lg shadow-xl active:scale-95 transition">
+                🗣️ الجميع مسح الكود — بدء النقاش
+              </button>
+              <button id="btn-str-reveal-now" type="button"
+                class="w-full sm:w-auto px-6 py-4 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-amber-300 font-bold text-sm transition">
+                🎭 كشف الغريب مباشرة
+              </button>
+            </div>
+          </div>
+        `;
+      } else if (s.phase === 'discuss') {
+        const cat = STRANGER_CATEGORIES[s.activeCatIdx];
+        bodyHtml = `
+          <div class="max-w-3xl mx-auto glass-card rounded-3xl p-6 sm:p-8 border-2 border-purple-400/60 shadow-2xl text-center space-y-5 animate-in">
+            <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-500/20 border border-purple-400/40 text-purple-200 text-xs font-bold">
+              <span>${cat.icon}</span>
+              <span>التصنيف: ${cat.name} • ${s.playerCount} لاعبين • ${s.strangerCount === 2 ? 'غريبان' : 'غريب واحد'}</span>
+            </div>
+
+            <h3 class="text-2xl sm:text-3xl font-black text-white">🗣️ وقت الأسئلة والنقاش!</h3>
+            <p class="text-sm text-slate-300 leading-relaxed max-w-xl mx-auto">
+              اسألوا بعضكم أسئلة ذكية حول الكلمة بدون أن تفضحوها للغريب. إذا شكيتم بأحد، صوّتوا عليه ثم اكشفوا الحقيقة!
+            </p>
+
+            <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
+              <div class="text-xs font-bold text-slate-400">مؤقت النقاش (اختياري)</div>
+              <div id="str-timer-num" class="text-4xl sm:text-5xl font-black tabular-nums ${s.timeLeft <= 15 ? 'text-rose-400' : 'text-white'}">${formatMinSec(s.timeLeft)}</div>
+              <div class="flex flex-wrap items-center justify-center gap-2">
+                <button id="btn-str-pause" type="button" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200">
+                  ${s.paused ? '▶ استئناف' : '⏸ إيقاف المؤقت'}
+                </button>
+                <button id="btn-str-addmin" type="button" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-cyan-300">
+                  +1 دقيقة
+                </button>
+                <button id="btn-str-show-qrs" type="button" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-400">
+                  📱 العودة للأكواد
+                </button>
+              </div>
+            </div>
+
+            <button id="btn-str-reveal" type="button"
+              class="w-full py-4 rounded-2xl bg-gradient-to-l from-rose-500 to-amber-500 text-slate-950 font-black text-base sm:text-lg shadow-xl active:scale-95 transition">
+              🎭 كشف الغريب والكلمة السرية
+            </button>
+          </div>
+        `;
+      } else if (s.phase === 'reveal') {
+        const cat = STRANGER_CATEGORIES[s.activeCatIdx];
+        const word = cat.words[s.activeWordIdx];
+        const strangersLabel = s.strangerNums.map(n => `لاعب ${n}`).join(' و ');
+        bodyHtml = `
+          <div class="max-w-3xl mx-auto glass-card rounded-3xl p-6 sm:p-8 border-2 border-amber-400/70 shadow-2xl text-center space-y-5 animate-in">
+            <div class="text-5xl">🎭</div>
+            <h3 class="text-2xl sm:text-3xl font-black text-white">انكشفت الحقيقة!</h3>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div class="p-5 rounded-2xl bg-rose-500/15 border-2 border-rose-500/50 space-y-1.5">
+                <div class="text-xs font-bold text-rose-300">${s.strangerNums.length > 1 ? 'الغرباء هم:' : 'الغريب هو:'}</div>
+                <div class="text-2xl sm:text-3xl font-black text-white">🕵️ ${escapeHtml(strangersLabel)}</div>
+              </div>
+              <div class="p-5 rounded-2xl bg-emerald-500/15 border-2 border-emerald-500/50 space-y-1.5">
+                <div class="text-xs font-bold text-emerald-300">الكلمة السرية (${cat.icon} ${cat.name}):</div>
+                <div class="text-2xl sm:text-3xl font-black text-white">${escapeHtml(word)}</div>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <button id="btn-str-new-round" type="button"
+                class="px-7 py-3.5 rounded-2xl bg-gradient-to-l from-purple-500 to-fuchsia-500 text-white font-black text-base shadow-lg active:scale-95 transition">
+                🔄 جولة جديدة (${s.playerCount} أكواد جديدة)
+              </button>
+              <button id="btn-str-back-setup" type="button"
+                class="px-5 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-sm transition">
+                ⚙️ تغيير العدد أو التصنيف
+              </button>
+              <button id="btn-str-home" type="button"
+                class="px-5 py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold text-sm transition">
+                🏠 الرئيسية
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      return `<div class="animate-in pb-6">${bodyHtml}</div>`;
+    }
+
+    function bindStrangerEvents() {
+      const s = state.stranger;
+
+      const homeBtn = document.getElementById('btn-str-home');
+      if (homeBtn) {
+        homeBtn.addEventListener('click', () => {
+          clearTimer();
+          SoundFX.click();
+          state.screen = 'setup';
+          render();
+        });
+      }
+
+      document.querySelectorAll('[data-str-count]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          SoundFX.click();
+          s.playerCount = Number(btn.dataset.strCount);
+          if (s.playerCount < 6) s.strangerCount = 1;
+          render();
+        });
+      });
+
+      document.querySelectorAll('[data-str-impostors]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          SoundFX.click();
+          s.strangerCount = Number(btn.dataset.strImpostors);
+          render();
+        });
+      });
+
+      document.querySelectorAll('[data-str-cat]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          SoundFX.click();
+          s.selectedCatId = btn.dataset.strCat;
+          render();
+        });
+      });
+
+      const startBtn = document.getElementById('btn-str-start');
+      if (startBtn) startBtn.addEventListener('click', startStrangerRound);
+
+      const rerollBtn = document.getElementById('btn-str-reroll');
+      if (rerollBtn) rerollBtn.addEventListener('click', startStrangerRound);
+
+      const newRoundBtn = document.getElementById('btn-str-new-round');
+      if (newRoundBtn) newRoundBtn.addEventListener('click', startStrangerRound);
+
+      const backSetupBtn = document.getElementById('btn-str-back-setup');
+      if (backSetupBtn) {
+        backSetupBtn.addEventListener('click', () => {
+          clearTimer();
+          SoundFX.click();
+          s.phase = 'setup';
+          render();
+        });
+      }
+
+      document.querySelectorAll('[data-str-toggle-scan]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          SoundFX.click();
+          const num = Number(btn.dataset.strToggleScan);
+          const card = s.qrCards.find(c => c.num === num);
+          if (card) {
+            card.scanned = !card.scanned;
+            render();
+          }
+        });
+      });
+
+      const discussBtn = document.getElementById('btn-str-discuss');
+      if (discussBtn) discussBtn.addEventListener('click', startStrangerDiscuss);
+
+      const showQrsBtn = document.getElementById('btn-str-show-qrs');
+      if (showQrsBtn) {
+        showQrsBtn.addEventListener('click', () => {
+          clearTimer();
+          SoundFX.click();
+          s.phase = 'qr';
+          render();
+        });
+      }
+
+      const pauseBtn = document.getElementById('btn-str-pause');
+      if (pauseBtn) {
+        pauseBtn.addEventListener('click', () => {
+          SoundFX.click();
+          s.paused = !s.paused;
+          render();
+        });
+      }
+
+      const addMinBtn = document.getElementById('btn-str-addmin');
+      if (addMinBtn) {
+        addMinBtn.addEventListener('click', () => {
+          SoundFX.click();
+          s.timeLeft += 60;
+          render();
+        });
+      }
+
+      const revealHandler = () => {
+        clearTimer();
+        s.phase = 'reveal';
+        SoundFX.victory();
+        if (typeof confetti === 'function') {
+          confetti({ particleCount: 70, spread: 70, origin: { y: 0.55 } });
+        }
+        render();
+      };
+      const revealBtn = document.getElementById('btn-str-reveal');
+      if (revealBtn) revealBtn.addEventListener('click', revealHandler);
+      const revealNowBtn = document.getElementById('btn-str-reveal-now');
+      if (revealNowBtn) revealNowBtn.addEventListener('click', revealHandler);
+
+      if (s.phase === 'qr' && typeof qrcode === 'function') {
+        paintStrangerQrs();
+      }
+    }
+
+    // --- Phone client view when a player scans their personal QR code ---
+    function startStrangerPhoneApp(token) {
+      const decoded = decodeStrangerToken(token);
+      state.stranger.phoneCard = decoded;
+      state.stranger.phoneRevealed = false;
+      state.screen = 'strangerPhone';
+      const header = document.querySelector('header');
+      const footer = document.querySelector('footer');
+      const adWrap = document.getElementById('ad-banner-wrapper');
+      if (header) header.classList.add('hidden');
+      if (footer) footer.classList.add('hidden');
+      if (adWrap) adWrap.classList.add('hidden');
+      render();
+    }
+
+    function renderStrangerPhoneScreen() {
+      const p = state.stranger.phoneCard;
+      const rev = state.stranger.phoneRevealed;
+
+      if (!p) {
+        return `
+          <div class="max-w-md mx-auto mt-10 glass-card rounded-3xl p-6 border border-rose-500/40 text-center space-y-4">
+            <div class="text-5xl">⚠️</div>
+            <h2 class="text-xl font-black text-white">كود غير صالح</h2>
+            <p class="text-sm text-slate-300">تأكد من مسح كود QR جديد من شاشة اللعبة.</p>
+            <a href="/" class="inline-block px-6 py-3 rounded-2xl bg-purple-500 text-white font-black text-sm">العودة لموقع وجه لوجه</a>
+          </div>
+        `;
+      }
+
+      if (!rev) {
+        return `
+          <div class="max-w-md mx-auto min-h-[80vh] flex flex-col justify-center animate-in">
+            <div class="glass-card rounded-3xl p-7 border-2 border-purple-400/60 shadow-2xl text-center space-y-5">
+              <div class="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-purple-500/20 border border-purple-400/40 text-purple-200 text-xs font-bold">
+                🕵️ لعبة من الغريب؟ — وجه لوجه
+              </div>
+              <div class="text-6xl">🃏</div>
+              <div>
+                <div class="text-sm font-bold text-slate-400">بطاقتك السرية</div>
+                <h1 class="text-3xl font-black text-white mt-1">لاعب ${p.num}</h1>
+              </div>
+              <p class="text-xs sm:text-sm text-slate-300">تأكد أنه لا أحد ينظر إلى شاشتك قبل كشف دورك!</p>
+              <button id="btn-str-phone-toggle" type="button"
+                class="w-full py-4 rounded-2xl bg-gradient-to-l from-purple-500 to-fuchsia-500 text-white font-black text-lg shadow-xl active:scale-95 transition">
+                👁 اضغط لكشف دورك
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      if (p.isStranger) {
+        return `
+          <div class="max-w-md mx-auto min-h-[80vh] flex flex-col justify-center animate-in">
+            <div class="glass-card rounded-3xl p-7 border-2 border-rose-500/80 bg-rose-950/30 shadow-2xl text-center space-y-5">
+              <div class="text-xs font-bold text-rose-300">لاعب ${p.num} • دورك السري</div>
+              <div class="text-6xl">🕵️</div>
+              <h1 class="text-3xl sm:text-4xl font-black text-rose-300">أنت الغريب!</h1>
+              <div class="p-4 rounded-2xl bg-slate-950/70 border border-rose-500/30 space-y-1">
+                <div class="text-xs font-bold text-slate-400">التصنيف فقط:</div>
+                <div class="text-xl font-black text-white">${p.cat.icon} ${escapeHtml(p.cat.name)}</div>
+              </div>
+              <p class="text-sm text-slate-200 leading-relaxed">
+                أنت لا تعرف الكلمة السرية! استمع لأسئلة اللاعبين وحاول أن تندمج معهم وتخمّن الكلمة بدون أن يكتشفوك.
+              </p>
+              <button id="btn-str-phone-toggle" type="button"
+                class="w-full py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 font-black text-base active:scale-95 transition">
+                🙈 إخفاء البطاقة
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="max-w-md mx-auto min-h-[80vh] flex flex-col justify-center animate-in">
+          <div class="glass-card rounded-3xl p-7 border-2 border-emerald-400/80 bg-emerald-950/25 shadow-2xl text-center space-y-5">
+            <div class="text-xs font-bold text-emerald-300">لاعب ${p.num} • دورك السري</div>
+            <div class="text-6xl">✅</div>
+            <h1 class="text-2xl sm:text-3xl font-black text-emerald-300">أنت داخل السالفة!</h1>
+            <div class="p-5 rounded-2xl bg-slate-950/80 border border-emerald-500/40 space-y-2">
+              <div class="text-xs font-bold text-slate-400">${p.cat.icon} ${escapeHtml(p.cat.name)}</div>
+              <div class="text-3xl sm:text-4xl font-black text-white">${escapeHtml(p.word)}</div>
+            </div>
+            <p class="text-sm text-slate-200 leading-relaxed">
+              هذه هي الكلمة السرية! أجب بذكاء بدون أن تكشفها للغريب، وحاول اكتشاف من لا يعرف الكلمة.
+            </p>
+            <button id="btn-str-phone-toggle" type="button"
+              class="w-full py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 font-black text-base active:scale-95 transition">
+              🙈 إخفاء البطاقة
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function bindStrangerPhoneEvents() {
+      const btn = document.getElementById('btn-str-phone-toggle');
+      if (btn) {
+        btn.addEventListener('click', () => {
+          SoundFX.select();
+          state.stranger.phoneRevealed = !state.stranger.phoneRevealed;
+          render();
+        });
+      }
+    }
+
     // Initial Render (a phone that scanned the drawing QR code opens the drawer view)
     const drawParam = new URLSearchParams(location.search).get('draw');
     const npaParam = new URLSearchParams(location.search).get('npa');
     const buzzParam = new URLSearchParams(location.search).get('buzz');
+    const gharibParam = new URLSearchParams(location.search).get('gharib');
     if (drawParam) startDrawerApp(drawParam);
     else if (npaParam) startNpaPlayerApp(npaParam, Number(new URLSearchParams(location.search).get('team')));
     else if (buzzParam) startBuzzPlayerApp(buzzParam, Number(new URLSearchParams(location.search).get('team')));
+    else if (gharibParam) startStrangerPhoneApp(gharibParam);
     else if (new URLSearchParams(location.search).get('p')) {
       const qp = new URLSearchParams(location.search);
       startPhoneClient(qp.get('p'), qp.get('h'), Number(qp.get('s')));
