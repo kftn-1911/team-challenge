@@ -10136,7 +10136,7 @@
         activeCell: null // { r, c, letter, qObj, revealed, timeLeft, paused }
       },
       auction: {
-        phase: 'pick', // 'pick' | 'bid' | 'play' | 'result' | 'winner'
+        phase: 'pick', // 'pick' | 'bid' | 'play' | 'review' | 'result' | 'winner'
         targetWins: 5,
         round: 1,
         scores: [0, 0],
@@ -10146,8 +10146,8 @@
         currentBid: 0,
         bidHolderIdx: null, // 0 or 1
         bidTurnIdx: 0,
-        hits: 0,
         timeLeft: 30,
+        elapsedSeconds: 0,
         paused: false,
         showExamples: false,
         lastRoundWinner: null,
@@ -12299,8 +12299,8 @@
       a.currentBid = 0;
       a.bidHolderIdx = null;
       a.bidTurnIdx = 0;
-      a.hits = 0;
       a.timeLeft = state.timerSeconds;
+      a.elapsedSeconds = 0;
       a.paused = false;
       a.showExamples = false;
       a.lastRoundWinner = null;
@@ -12315,7 +12315,7 @@
       a.currentBid = 0;
       a.bidHolderIdx = null;
       a.bidTurnIdx = a.pickerTeamIdx;
-      a.hits = 0;
+      a.elapsedSeconds = 0;
       a.showExamples = false;
       SoundFX.openQ();
       render();
@@ -12324,8 +12324,8 @@
     function startAuctionExecution() {
       const a = state.auction;
       a.phase = 'play';
-      a.hits = 0;
       a.timeLeft = state.timerSeconds;
+      a.elapsedSeconds = 0;
       a.paused = false;
       a.showExamples = false;
       SoundFX.select();
@@ -12348,13 +12348,23 @@
           if (a.timeLeft > 0 && a.timeLeft <= 5) SoundFX.tick();
           else if (a.timeLeft === 0) {
             SoundFX.timeUp();
-            finishAuctionRound(false);
+            finishAuctionRound(false, 'timeout');
           }
         }
       }, 1000);
     }
 
-    function finishAuctionRound(succeeded) {
+    function startAuctionReview() {
+      clearTimer();
+      const a = state.auction;
+      a.elapsedSeconds = Math.max(0, state.timerSeconds - a.timeLeft);
+      a.paused = false;
+      a.phase = 'review';
+      SoundFX.select();
+      render();
+    }
+
+    function finishAuctionRound(succeeded, failReason = 'rejected') {
       clearTimer();
       const a = state.auction;
       if (a.topic) {
@@ -12366,9 +12376,15 @@
       const winnerIdx = succeeded ? bidder : other;
       a.scores[winnerIdx] += 1;
       a.lastRoundWinner = winnerIdx;
-      a.lastRoundReason = succeeded
-        ? `نجح ${state.teams[bidder].name} في الوصول إلى ${a.currentBid} إجابات صحيحة قبل انتهاء الوقت!`
-        : `لم يكمل ${state.teams[bidder].name} عدد المزاد (${a.hits}/${a.currentBid})، فذهبت النقطة إلى ${state.teams[other].name}!`;
+      if (succeeded) {
+        a.lastRoundReason = `بعد مراجعة الفريقين، استحق ${state.teams[bidder].name} الدرجة لإتمامه ${a.currentBid} إجابات صحيحة!`;
+      } else if (failReason === 'timeout') {
+        a.lastRoundReason = `انتهى الوقت قبل أن يُنهي ${state.teams[bidder].name} الإجابات المطلوبة (${a.currentBid})، فذهبت النقطة إلى ${state.teams[other].name}!`;
+      } else if (failReason === 'giveup') {
+        a.lastRoundReason = `لم يُكمل ${state.teams[bidder].name} التحدي (${a.currentBid} إجابات)، فذهبت النقطة إلى ${state.teams[other].name}!`;
+      } else {
+        a.lastRoundReason = `بعد مراجعة الفريقين، لم يستحق ${state.teams[bidder].name} الدرجة (${a.currentBid} إجابات)، فذهبت النقطة إلى ${state.teams[other].name}!`;
+      }
 
       if (succeeded) SoundFX.correct();
       else SoundFX.wrong();
@@ -12394,7 +12410,7 @@
 
       const scoreboard = `
         <div class="grid grid-cols-2 gap-2.5 sm:gap-4 mb-3.5">
-          <div class="glass-card rounded-2xl p-3 sm:p-4 border transition ${((a.phase === 'pick' && a.pickerTeamIdx === 0) || (a.phase === 'bid' && a.bidTurnIdx === 0) || (a.phase === 'play' && a.bidHolderIdx === 0)) ? 'border-cyan-400 bg-cyan-500/15 team1-active-ring' : 'border-slate-800'}">
+          <div class="glass-card rounded-2xl p-3 sm:p-4 border transition ${((a.phase === 'pick' && a.pickerTeamIdx === 0) || (a.phase === 'bid' && a.bidTurnIdx === 0) || ((a.phase === 'play' || a.phase === 'review') && a.bidHolderIdx === 0)) ? 'border-cyan-400 bg-cyan-500/15 team1-active-ring' : 'border-slate-800'}">
             <div class="flex items-center justify-between gap-1">
               <span class="text-xs sm:text-base font-extrabold text-cyan-300 truncate">🔵 ${escapeHtml(t0.name)}</span>
               <span class="text-[11px] font-bold text-slate-400">الهدف: ${a.targetWins}</span>
@@ -12402,7 +12418,7 @@
             <div class="text-3xl sm:text-4xl font-black text-white tabular-nums mt-1">${a.scores[0]}</div>
           </div>
 
-          <div class="glass-card rounded-2xl p-3 sm:p-4 border transition ${((a.phase === 'pick' && a.pickerTeamIdx === 1) || (a.phase === 'bid' && a.bidTurnIdx === 1) || (a.phase === 'play' && a.bidHolderIdx === 1)) ? 'border-amber-400 bg-amber-500/15 team2-active-ring' : 'border-slate-800'}">
+          <div class="glass-card rounded-2xl p-3 sm:p-4 border transition ${((a.phase === 'pick' && a.pickerTeamIdx === 1) || (a.phase === 'bid' && a.bidTurnIdx === 1) || ((a.phase === 'play' || a.phase === 'review') && a.bidHolderIdx === 1)) ? 'border-amber-400 bg-amber-500/15 team2-active-ring' : 'border-slate-800'}">
             <div class="flex items-center justify-between gap-1">
               <span class="text-xs sm:text-base font-extrabold text-amber-300 truncate">🟡 ${escapeHtml(t1.name)}</span>
               <span class="text-[11px] font-bold text-slate-400">الجولة ${a.round}</span>
@@ -12508,7 +12524,6 @@
         const isT0Play = a.bidHolderIdx === 0;
         const playerName = state.teams[a.bidHolderIdx].name;
         const pctTime = Math.max(0, (a.timeLeft / state.timerSeconds) * 100);
-        const pctHits = Math.min(100, (a.hits / a.currentBid) * 100);
 
         bodyHtml = `
           <div class="glass-card rounded-3xl p-5 sm:p-7 border-2 ${isT0Play ? 'border-cyan-400/70' : 'border-amber-400/70'} shadow-2xl space-y-4">
@@ -12533,25 +12548,17 @@
               <p class="text-base sm:text-xl font-extrabold text-white">${escapeHtml(a.topic.title)}</p>
             </div>
 
-            <!-- Counter Progress -->
-            <div class="p-4 rounded-2xl bg-slate-900/70 border border-slate-800 text-center space-y-3">
-              <div class="text-4xl sm:text-5xl font-black text-white tabular-nums">
-                <span class="${isT0Play ? 'text-cyan-400' : 'text-amber-400'}">${a.hits}</span>
-                <span class="text-slate-500 text-2xl"> / ${a.currentBid}</span>
+            <!-- Target & Finish Action -->
+            <div class="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 text-center space-y-4">
+              <div>
+                <div class="text-xs font-bold text-slate-400">عدد الإجابات المطلوبة</div>
+                <div class="text-5xl sm:text-6xl font-black tabular-nums mt-1 ${isT0Play ? 'text-cyan-400' : 'text-amber-400'}">${a.currentBid}</div>
+                <p class="text-xs sm:text-sm text-slate-300 font-semibold mt-2">عند الانتهاء من ذكر جميع الإجابات، اضغط الزر أدناه ليراجعها الفريقان</p>
               </div>
-              <div class="w-full h-3 rounded-full bg-slate-950 overflow-hidden">
-                <div style="width:${pctHits}%" class="h-full rounded-full transition-all duration-200 bg-gradient-to-l from-emerald-400 to-cyan-400"></div>
-              </div>
-              <div class="grid grid-cols-4 gap-2 pt-1">
-                <button id="btn-auc-hit" type="button"
-                  class="col-span-3 py-4 rounded-2xl bg-gradient-to-l from-emerald-500 to-cyan-500 text-slate-950 font-black text-base sm:text-lg shadow-lg active:scale-95 transition">
-                  ✅ +1 إجابة صحيحة
-                </button>
-                <button id="btn-auc-unhit" type="button" ${a.hits === 0 ? 'disabled' : ''}
-                  class="py-4 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-black text-base disabled:opacity-40 active:scale-95 transition">
-                  −1
-                </button>
-              </div>
+              <button id="btn-auc-done" type="button"
+                class="w-full py-4 rounded-2xl bg-gradient-to-l from-emerald-500 to-cyan-500 text-slate-950 font-black text-base sm:text-lg shadow-lg active:scale-95 transition">
+                ✅ أنهيت جميع الإجابات — بدء المراجعة
+              </button>
             </div>
 
             <div class="flex flex-wrap items-center justify-between gap-2">
@@ -12561,9 +12568,60 @@
               </button>
               <button id="btn-auc-giveup" type="button"
                 class="py-2.5 px-4 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-xs sm:text-sm font-bold text-rose-300 transition">
-                🏳️ انتهت المحاولة
+                🏳️ لم أكمل / انسحاب
               </button>
             </div>
+
+            ${a.showExamples ? `
+              <div class="p-3.5 rounded-2xl bg-slate-950/80 border border-cyan-500/30 text-xs sm:text-sm text-slate-300 leading-relaxed animate-in">
+                <div class="font-bold text-cyan-300 mb-1">أمثلة إجابات صحيحة:</div>
+                ${escapeHtml(a.topic.examples)}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      } else if (a.phase === 'review') {
+        const isT0Play = a.bidHolderIdx === 0;
+        const playerName = state.teams[a.bidHolderIdx].name;
+        const otherName = state.teams[1 - a.bidHolderIdx].name;
+
+        bodyHtml = `
+          <div class="glass-card rounded-3xl p-5 sm:p-7 border-2 ${isT0Play ? 'border-cyan-400/70' : 'border-amber-400/70'} shadow-2xl space-y-5 animate-in">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div class="text-xs font-bold text-emerald-300">⚖️ مرحلة المراجعة — قرار الفريقين</div>
+                <div class="text-lg sm:text-xl font-black text-white">مراجعة إجابات ${escapeHtml(playerName)}</div>
+              </div>
+              <span class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-bold text-slate-200 tabular-nums">
+                ⏱️ أنهى في ${a.elapsedSeconds} ث (تبقى ${a.timeLeft} ث)
+              </span>
+            </div>
+
+            <div class="py-4 px-4 rounded-2xl bg-slate-900/80 border border-slate-800 text-center space-y-1.5">
+              <div class="text-xs font-bold text-amber-300">الموضوع (المطلوب: ${a.currentBid} إجابات)</div>
+              <p class="text-base sm:text-xl font-extrabold text-white">${escapeHtml(a.topic.title)}</p>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-slate-900/70 border border-slate-800 text-center space-y-3">
+              <p class="text-sm sm:text-base font-bold text-slate-100">
+                بعد مراجعة الفريقين لإجابات <span class="${isT0Play ? 'text-cyan-300' : 'text-amber-300'}">${escapeHtml(playerName)}</span>، هل يستحق الدرجة؟
+              </p>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <button id="btn-auc-approve" type="button"
+                  class="py-4 px-4 rounded-2xl bg-gradient-to-l from-emerald-500 to-cyan-500 text-slate-950 font-black text-base shadow-lg active:scale-95 transition">
+                  ✅ نعم، يستحق الدرجة (نقطة لـ ${escapeHtml(playerName)})
+                </button>
+                <button id="btn-auc-reject" type="button"
+                  class="py-4 px-4 rounded-2xl bg-rose-500/20 hover:bg-rose-500/30 border-2 border-rose-500/60 text-rose-200 font-black text-base active:scale-95 transition">
+                  ❌ لا يستحق الدرجة (نقطة لـ ${escapeHtml(otherName)})
+                </button>
+              </div>
+            </div>
+
+            <button id="btn-auc-examples" type="button"
+              class="w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs sm:text-sm font-bold text-cyan-300 transition">
+              ${a.showExamples ? '🙈 إخفاء أمثلة الإجابات' : '📋 عرض أمثلة إجابات للمراجعة'}
+            </button>
 
             ${a.showExamples ? `
               <div class="p-3.5 rounded-2xl bg-slate-950/80 border border-cyan-500/30 text-xs sm:text-sm text-slate-300 leading-relaxed animate-in">
@@ -12695,28 +12753,19 @@
         });
       }
 
-      const hitBtn = document.getElementById('btn-auc-hit');
-      if (hitBtn) {
-        hitBtn.addEventListener('click', () => {
-          a.hits += 1;
-          SoundFX.select();
-          if (a.hits >= a.currentBid) {
-            finishAuctionRound(true);
-          } else {
-            render();
-          }
-        });
+      const doneBtn = document.getElementById('btn-auc-done');
+      if (doneBtn) {
+        doneBtn.addEventListener('click', startAuctionReview);
       }
 
-      const unhitBtn = document.getElementById('btn-auc-unhit');
-      if (unhitBtn) {
-        unhitBtn.addEventListener('click', () => {
-          if (a.hits > 0) {
-            SoundFX.click();
-            a.hits -= 1;
-            render();
-          }
-        });
+      const approveBtn = document.getElementById('btn-auc-approve');
+      if (approveBtn) {
+        approveBtn.addEventListener('click', () => finishAuctionRound(true));
+      }
+
+      const rejectBtn = document.getElementById('btn-auc-reject');
+      if (rejectBtn) {
+        rejectBtn.addEventListener('click', () => finishAuctionRound(false, 'rejected'));
       }
 
       const exBtn = document.getElementById('btn-auc-examples');
@@ -12730,7 +12779,7 @@
 
       const giveupBtn = document.getElementById('btn-auc-giveup');
       if (giveupBtn) {
-        giveupBtn.addEventListener('click', () => finishAuctionRound(false));
+        giveupBtn.addEventListener('click', () => finishAuctionRound(false, 'giveup'));
       }
 
       const nextRoundBtn = document.getElementById('btn-auc-next-round');
